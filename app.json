@@ -1,0 +1,79 @@
+{
+  "expo": {
+    "name": "MBet-Adera",
+    "slug": "mbet-adera",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/logo2.png",
+    "scheme": "mbetsupachapa",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "We need your location to show you nearby delivery points",
+        "NSLocationAlwaysUsageDescription": "We need your location to track your deliveries"
+      },
+      "bundleIdentifier": "com.ermax7.mbetaderav2x"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon_mbet_adera1.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyAxqOQntNMYnJvbRIX4xY-W45mT8hIZVkc"
+        }
+      },
+      "package": "com.ermax7.mbetaderav2x"
+    },
+    "web": {
+      "bundler": "metro",
+      "build": {
+        "babel": {
+          "include": ["react-native-maps"]
+        }
+      },
+      "webpack": {
+        "alias": {
+          "react-native-maps": "react-native-web-maps"
+        }
+      }
+    },
+    "output": "static",
+    "favicon": "./assets/images/logo XX1.png"
+  },
+  "plugins": [
+    "expo-router",
+    [
+      "expo-splash-screen",
+      {
+        "image": "./assets/images/splash-mbetadera.jpg",
+        "imageWidth": 200,
+        "resizeMode": "contain",
+        "backgroundColor": "#ffffff"
+      }
+    ],
+    [
+      "expo-location",
+      {
+        "locationAlwaysAndWhenInUsePermission": "Allow MBet-Adera to use your location to show nearby delivery points and track deliveries."
+      }
+    ]
+  ],
+  "experiments": {
+    "typedRoutes": true
+  },
+  "splash": {
+    "image": "./assets/images/delivery tracking images.jpg",
+    "resizeMode": "contain",
+    "backgroundColor": "#ffffff"
+  }
+}
