@@ -123,50 +123,130 @@ export const parcelService = {
     console.log(`[parcelService.getParcelById] Fetching parcel ${parcelId} for user: ${userId}`);
     
     try {
-      // First attempt to get the parcel
+      if (!parcelId || !userId) {
+        console.log("Missing parcelId or userId parameter");
+        return null;
+      }
+      
+      // First verify the user has access to this parcel
+      const { data: accessCheck, error: accessError } = await supabase
+        .from('parcels')
+        .select('id')
+        .eq('id', parcelId)
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .maybeSingle();
+      
+      if (accessError) {
+        console.error('Error checking parcel access:', accessError);
+        return null;
+      }
+      
+      if (!accessCheck) {
+        console.log(`Access denied: User ${userId} does not have access to parcel ${parcelId}`);
+        return null;
+      }
+      
+      console.log(`Access verified for parcel ${parcelId}`);
+      
+      // Now fetch all the required parcel data
       const { data, error } = await supabase
         .from('parcels')
         .select(`
-          *,
-          pickup_address:pickup_address_id(
-            id, address_line, city, latitude, longitude, created_at, updated_at
-          ),
-          dropoff_address:dropoff_address_id(
-            id, address_line, city, latitude, longitude, created_at, updated_at
-          )
+          id, tracking_code, package_size, status, is_fragile, weight,
+          price, package_description, pickup_address_id, dropoff_address_id,
+          sender_id, receiver_id, created_at, updated_at
         `)
         .eq('id', parcelId)
-        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
         .single();
 
       if (error) {
         console.error('Error fetching parcel by ID:', error);
-        if (error.code === 'PGRST116') {
-          // No results found or permissions error
-          console.log('Parcel not found or access denied');
-          return null;
-        }
-        throw error;
-      }
-
-      // If we have a parcel, add partner_id to addresses since it's required by the type
-      // (This is a workaround for the missing partner_id in the database)
-      if (data) {
-        if (data.pickup_address) {
-          data.pickup_address.partner_id = data.pickup_address.partner_id || userId;
-        }
-        if (data.dropoff_address) {
-          data.dropoff_address.partner_id = data.dropoff_address.partner_id || userId;
-        }
-        
-        console.log(`Successfully fetched parcel: ${parcelId}`);
-        return data;
+        return null;
       }
       
-      return null;
+      if (!data) {
+        console.log(`No parcel found with ID: ${parcelId}`);
+        return null;
+      }
+      
+      // Safely handle null/undefined values
+      const parcel = {
+        ...data,
+        tracking_code: data.tracking_code || '',
+        status: data.status || 'pending',
+        package_size: data.package_size || '',
+        package_description: data.package_description || '',
+        is_fragile: !!data.is_fragile,
+        weight: data.weight || 0,
+        price: data.price || 0
+      };
+      
+      // Fetch pickup address if present
+      let pickupAddress = null;
+      if (parcel.pickup_address_id) {
+        try {
+          const { data: pickupData, error: pickupError } = await supabase
+            .from('addresses')
+            .select('id, address_line, city, latitude, longitude, created_at, updated_at')
+            .eq('id', parcel.pickup_address_id)
+            .single();
+          
+          if (pickupError) {
+            console.warn(`Error fetching pickup address ${parcel.pickup_address_id}:`, pickupError);
+          } else if (pickupData) {
+            pickupAddress = {
+              ...pickupData,
+              partner_id: userId, // Add required partner_id field
+              address_line: pickupData.address_line || 'Unknown address',
+              city: pickupData.city || 'Unknown city',
+              latitude: pickupData.latitude || 0,
+              longitude: pickupData.longitude || 0
+            };
+          }
+        } catch (addrError) {
+          console.warn(`Exception fetching pickup address ${parcel.pickup_address_id}:`, addrError);
+        }
+      }
+      
+      // Fetch dropoff address if present
+      let dropoffAddress = null;
+      if (parcel.dropoff_address_id) {
+        try {
+          const { data: dropoffData, error: dropoffError } = await supabase
+            .from('addresses')
+            .select('id, address_line, city, latitude, longitude, created_at, updated_at')
+            .eq('id', parcel.dropoff_address_id)
+            .single();
+          
+          if (dropoffError) {
+            console.warn(`Error fetching dropoff address ${parcel.dropoff_address_id}:`, dropoffError);
+          } else if (dropoffData) {
+            dropoffAddress = {
+              ...dropoffData,
+              partner_id: userId, // Add required partner_id field
+              address_line: dropoffData.address_line || 'Unknown address',
+              city: dropoffData.city || 'Unknown city',
+              latitude: dropoffData.latitude || 0,
+              longitude: dropoffData.longitude || 0
+            };
+          }
+        } catch (addrError) {
+          console.warn(`Exception fetching dropoff address ${parcel.dropoff_address_id}:`, addrError);
+        }
+      }
+      
+      // Create complete parcel object with addresses
+      const completeParcel = {
+        ...parcel,
+        pickup_address: pickupAddress,
+        dropoff_address: dropoffAddress
+      };
+      
+      console.log(`Successfully fetched complete parcel: ${parcelId}`);
+      return completeParcel;
     } catch (error) {
       console.error('Error in getParcelById:', error);
-      throw error;
+      return null;
     }
   },
 

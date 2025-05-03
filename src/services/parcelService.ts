@@ -126,6 +126,7 @@ export const parcelService = {
    * Get all parcels for the current user
    */
   async getParcels(userId: string): Promise<Parcel[]> {
+    console.log('Starting getParcels for user:', userId);
     const { data, error } = await supabase
       .rpc('get_paginated_parcels', {
         user_id: userId,
@@ -137,52 +138,67 @@ export const parcelService = {
       });
 
     if (error) {
-      console.error('Error fetching parcels:', error);
+      console.error('Error in getParcels RPC call:', error);
       throw error;
     }
 
-    return (data?.parcels || []) as Parcel[];
+    console.log('Raw data from getParcels:', data);
+
+    // Handle both response formats (JSONB and TABLE formats)
+    let parcels: Parcel[] = [];
+    if (Array.isArray(data)) {
+      console.log('Received array format data');
+      parcels = data as Parcel[];
+    } else {
+      console.log('Received JSONB format data');
+      parcels = (data?.parcels || []) as Parcel[];
+    }
+
+    console.log('Processed parcels count:', parcels.length);
+    console.log('Sample parcel data:', parcels[0]);
+
+    // Ensure each parcel has a tracking code (use ID if tracking_code is null)
+    parcels = parcels.map(parcel => ({
+      ...parcel,
+      tracking_code: parcel.tracking_code || parcel.id
+    }));
+
+    return parcels;
   },
 
   /**
    * Get a single parcel by ID
    */
   async getParcelById(parcelId: string, userId: string): Promise<Parcel | null> {
-    const { data, error } = await supabase
-      .from('parcels')
-      .select(`
-        *,
-        pickup_address:pickup_address_id(
-          id,
-          address_line,
-          city,
-          latitude,
-          longitude
-        ),
-        dropoff_address:dropoff_address_id(
-          id,
-          address_line,
-          city,
-          latitude,
-          longitude
-        )
-      `)
-      .eq('id', parcelId)
-      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-      .single();
+    console.log('Starting getParcelById for parcel:', parcelId, 'user:', userId);
+    try {
+      const { data, error } = await supabase
+        .rpc('get_parcel_by_id', {
+          p_parcel_id: parcelId,
+          p_user_id: userId
+        });
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        console.log('Parcel not found or access denied');
+      if (error) {
+        console.error('Error in getParcelById RPC call:', error);
+        throw error;
+      }
+
+      console.log('Raw data from getParcelById:', data);
+
+      if (!data) {
+        console.log('Parcel not found in results');
         return null;
       }
-      console.error('Error fetching parcel by ID:', error);
-      throw error;
+
+      console.log('Found parcel:', data);
+      return {
+        ...data,
+        tracking_code: data.tracking_code || data.id
+      } as Parcel;
+    } catch (error) {
+      console.error('Error in getParcelById:', error);
+      return null;
     }
-
-    if (!data) return null;
-
-    return data as Parcel;
   },
 
   /**
@@ -261,6 +277,9 @@ export const parcelService = {
 
     // Process data to include estimated delivery time
     const processedData = (data || []).map((parcel: Parcel) => {
+      // Ensure parcel has a tracking code
+      const trackingCode = parcel.tracking_code || parcel.id;
+      
       // Calculate estimated delivery time based on status
       let estimatedDelivery = '';
       const now = new Date();
@@ -279,6 +298,7 @@ export const parcelService = {
       
       return {
         ...parcel,
+        tracking_code: trackingCode,
         estimated_delivery: estimatedDelivery
       };
     });
@@ -337,6 +357,50 @@ export const parcelService = {
         statusArray = ['confirmed', 'picked_up', 'in_transit'];
       }
 
+      // Try to use RPC function first
+      try {
+        const { data, error } = await supabase
+          .rpc('get_paginated_parcels', {
+            user_id: userId,
+            p_status: statusFilter || 'all',
+            p_limit: limit,
+            p_offset: offset,
+            p_sort_by: sortBy,
+            p_sort_direction: sortDirection
+          });
+
+        if (error) {
+          console.error('Error fetching parcels with RPC:', error);
+          throw error;
+        }
+
+        // Handle both response formats
+        let parcels: Parcel[] = [];
+        let totalCount = 0;
+
+        if (Array.isArray(data)) {
+          // TABLE format - first row has total_count
+          parcels = data as Parcel[];
+          // Safe access to total_count which might be in a different property
+          totalCount = parcels.length > 0 ? Number((parcels[0] as any).total_count) || parcels.length : 0;
+        } else {
+          // JSONB format with parcels and total_count keys
+          parcels = (data?.parcels || []) as Parcel[];
+          totalCount = Number(data?.total_count) || 0;
+        }
+
+        // Ensure each parcel has a tracking code
+        parcels = parcels.map(parcel => ({
+          ...parcel,
+          tracking_code: parcel.tracking_code || parcel.id
+        }));
+
+        return { parcels, totalCount };
+      } catch (rpcError) {
+        // If RPC fails, fallback to direct query
+        console.warn('RPC failed, falling back to direct query:', rpcError);
+      }
+
       // Build the query
       let query = supabase
         .from('parcels')
@@ -378,8 +442,14 @@ export const parcelService = {
         throw error;
       }
 
+      // Ensure each parcel has a tracking code
+      const parcels = (data || []).map(parcel => ({
+        ...parcel,
+        tracking_code: parcel.tracking_code || parcel.id
+      })) as Parcel[];
+
       return { 
-        parcels: (data || []) as Parcel[], 
+        parcels: parcels, 
         totalCount: count || 0 
       };
       

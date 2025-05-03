@@ -105,6 +105,8 @@ export default function ParcelDetailsModal() {
   useEffect(() => {
     if (!id || !user) {
       console.log("Missing required parameters:", { id, userId: user?.id });
+      setError("Missing required information. Please try again.");
+      setLoading(false);
       return;
     }
     
@@ -114,16 +116,20 @@ export default function ParcelDetailsModal() {
 
   // Setup QR code value
   useEffect(() => {
-    if (parcel?.tracking_code) {
-      const deepLink = `mbetadera://track/${parcel.tracking_code}`;
-      const webUrl = `https://mbetadera.app/track/${parcel.tracking_code}`;
+    if (parcel) {
+      // Use tracking_code or fall back to ID
+      const trackingCode = parcel.tracking_code || parcel.id;
+      const deepLink = `mbetadera://track/${trackingCode}`;
+      const webUrl = `https://mbetadera.app/track/${trackingCode}`;
       setQrValue(`${deepLink}?web=${webUrl}`);
     }
-  }, [parcel?.tracking_code]);
+  }, [parcel]);
 
   const fetchParcelDetails = async () => {
     if (!user || !id) {
       console.log("Missing user or parcel ID");
+      setError("Missing required information. Please try again.");
+      setLoading(false);
       return;
     }
     
@@ -140,11 +146,11 @@ export default function ParcelDetailsModal() {
       if (!parcelData) {
         console.log("Parcel data not found for ID:", id);
         setError("Parcel not found or you do not have permission to view it");
+        setLoading(false);
         return;
       }
       
       console.log("Successfully fetched parcel:", parcelData.id);
-      console.log("Parcel data:", JSON.stringify(parcelData, null, 2));
       
       setParcel(parcelData);
       
@@ -259,24 +265,28 @@ export default function ParcelDetailsModal() {
         }
       }
     } catch (error) {
-      console.error('Error sharing:', error);
-      Alert.alert('Sharing Failed', 'Could not share tracking information. Please try again.');
+      console.error('Error sharing parcel details:', error);
+      Alert.alert('Sharing Error', 'There was a problem sharing the tracking information.');
     } finally {
       setSharingInProgress(false);
     }
   };
 
   const handleCall = (phoneNumber?: string) => {
-    if (phoneNumber) {
-      Linking.openURL(`tel:${phoneNumber}`);
-    } else {
+    if (!phoneNumber || phoneNumber === 'N/A') {
       Alert.alert('No Phone Number', 'No phone number available for this contact.');
+      return;
     }
+    
+    Linking.openURL(`tel:${phoneNumber}`);
   };
 
   const handleTrack = () => {
     if (parcel) {
-      router.push(`/track-map?id=${parcel.id}` as any);
+      router.push({
+        pathname: '/track-map',
+        params: { id: parcel.id }
+      });
     }
   };
 
@@ -318,48 +328,66 @@ export default function ParcelDetailsModal() {
   const renderTabBar = () => (
     <View style={styles.tabBar}>
       <TouchableOpacity
-        style={[styles.tabButton, activeTab === 'details' && styles.activeTabButton]}
+        style={[
+          styles.tabButton,
+          activeTab === 'details' && styles.activeTabButton
+        ]}
         onPress={() => setActiveTab('details')}
       >
         <Ionicons
           name="information-circle-outline"
-          size={20}
+          size={18}
           color={activeTab === 'details' ? '#1976D2' : '#757575'}
         />
         <Text
-          style={[styles.tabButtonText, activeTab === 'details' && styles.activeTabButtonText]}
+          style={[
+            styles.tabButtonText,
+            activeTab === 'details' && styles.activeTabButtonText
+          ]}
         >
           Details
         </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.tabButton, activeTab === 'tracking' && styles.activeTabButton]}
+        style={[
+          styles.tabButton,
+          activeTab === 'tracking' && styles.activeTabButton
+        ]}
         onPress={() => setActiveTab('tracking')}
       >
         <Ionicons
-          name="locate-outline"
-          size={20}
+          name="qr-code-outline"
+          size={18}
           color={activeTab === 'tracking' ? '#1976D2' : '#757575'}
         />
         <Text
-          style={[styles.tabButtonText, activeTab === 'tracking' && styles.activeTabButtonText]}
+          style={[
+            styles.tabButtonText,
+            activeTab === 'tracking' && styles.activeTabButtonText
+          ]}
         >
           Tracking
         </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.tabButton, activeTab === 'timeline' && styles.activeTabButton]}
+        style={[
+          styles.tabButton,
+          activeTab === 'timeline' && styles.activeTabButton
+        ]}
         onPress={() => setActiveTab('timeline')}
       >
         <Ionicons
           name="time-outline"
-          size={20}
+          size={18}
           color={activeTab === 'timeline' ? '#1976D2' : '#757575'}
         />
         <Text
-          style={[styles.tabButtonText, activeTab === 'timeline' && styles.activeTabButtonText]}
+          style={[
+            styles.tabButtonText,
+            activeTab === 'timeline' && styles.activeTabButtonText
+          ]}
         >
           Timeline
         </Text>
@@ -368,30 +396,24 @@ export default function ParcelDetailsModal() {
   );
 
   const renderQRCode = useCallback(() => {
-    if (!parcel?.tracking_code || !qrValue) return null;
-    
-    const logoSize = 60;
+    if (!parcel) return null;
     
     return (
       <View style={styles.qrCodeContainer}>
         <Text style={styles.qrCodeTitle}>Scan to Track</Text>
-        
-        <ViewShot ref={qrRef} options={{ format: 'png', quality: 1 }} style={styles.qrCodeWrapper}>
+        <ViewShot ref={qrRef} style={styles.qrCodeWrapper}>
           <View style={styles.qrBackground}>
             <QRCode
               value={qrValue}
               size={200}
+              color="#333333"
               backgroundColor="#FFFFFF"
-              color="#000000"
-              logo={require('../../assets/images/logo2.png')}
-              logoSize={logoSize}
-              logoBackgroundColor="white"
-              logoBorderRadius={10}
             />
           </View>
         </ViewShot>
-        
-        <Text style={styles.qrCodeSubtitle}>Share this QR code to let others track this parcel</Text>
+        <Text style={styles.qrCodeSubtitle}>
+          Share this QR code to let others track this parcel
+        </Text>
         <Text style={styles.qrCodeTrackingCode}>
           Tracking Code: <Text style={styles.trackingCodeText}>{parcel.tracking_code}</Text>
         </Text>
@@ -402,7 +424,7 @@ export default function ParcelDetailsModal() {
   const renderPersonSection = (title: string, person: Profile | null, contact: any) => {
     const displayName = person?.full_name || contact?.name || 'N/A';
     const phoneNumber = person?.phone_number || contact?.phone || 'N/A';
-    
+
     return (
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{title}</Text>
@@ -412,13 +434,13 @@ export default function ParcelDetailsModal() {
               <Ionicons name="person" size={20} color="#666" />
               <Text style={styles.personName}>{displayName}</Text>
             </View>
-            
+
             <View style={styles.personRow}>
               <Ionicons name="call" size={20} color="#666" />
               <Text style={styles.personPhone}>{phoneNumber}</Text>
             </View>
           </View>
-          
+
           <TouchableOpacity
             style={styles.callButton}
             onPress={() => handleCall(phoneNumber !== 'N/A' ? phoneNumber : undefined)}
@@ -448,7 +470,7 @@ export default function ParcelDetailsModal() {
 
   const renderDetailsTab = () => {
     if (!parcel) return null;
-    
+
     return (
       <View style={styles.tabContent}>
         <View style={styles.section}>
@@ -457,45 +479,47 @@ export default function ParcelDetailsModal() {
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Size</Text>
               <Text style={styles.detailValue}>
-                {parcel.package_size ? 
-                  parcel.package_size.charAt(0).toUpperCase() + 
+                {parcel.package_size ?
+                  parcel.package_size.charAt(0).toUpperCase() +
                   parcel.package_size.slice(1) : 'N/A'}
               </Text>
             </View>
-            
+
             {parcel.weight && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Weight</Text>
                 <Text style={styles.detailValue}>{parcel.weight} kg</Text>
               </View>
             )}
-            
+
             {parcel.package_description && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Description</Text>
                 <Text style={styles.detailValue}>{parcel.package_description}</Text>
               </View>
             )}
-            
+
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Fragile</Text>
-              <Text style={styles.detailValue}>{parcel.is_fragile ? 'Yes' : 'No'}</Text>
+              <Text style={styles.detailValue}>
+                {parcel.is_fragile ? 'Yes' : 'No'}
+              </Text>
             </View>
-            
-            {parcel.estimated_price && (
+
+            {parcel.price !== undefined && parcel.price > 0 && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Estimated Price</Text>
-                <Text style={styles.detailValue}>{formatCurrency(parcel.estimated_price)}</Text>
+                <Text style={styles.detailValue}>{formatCurrency(parcel.price)}</Text>
               </View>
             )}
-            
+
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Created</Text>
               <Text style={styles.detailValue}>{formatDate(parcel.created_at)}</Text>
             </View>
           </View>
         </View>
-        
+
         {renderPersonSection('Sender', sender, parcel.pickup_contact)}
         {renderPersonSection('Recipient', recipient, parcel.dropoff_contact)}
         {renderAddressSection('Pickup Location', parcel.pickup_address)}
@@ -506,11 +530,11 @@ export default function ParcelDetailsModal() {
 
   const renderTrackingTab = () => {
     if (!parcel) return null;
-    
+
     return (
       <View style={styles.tabContent}>
         {renderQRCode()}
-        
+
         <TouchableOpacity
           style={[styles.trackButton, sharingInProgress && styles.disabledButton]}
           onPress={handleTrack}
@@ -519,7 +543,7 @@ export default function ParcelDetailsModal() {
           <Ionicons name="map-outline" size={20} color="#FFFFFF" />
           <Text style={styles.buttonText}>View on Map</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.shareButton, sharingInProgress && styles.disabledButton]}
           onPress={handleShare}
@@ -530,7 +554,7 @@ export default function ParcelDetailsModal() {
           ) : (
             <>
               <Ionicons name="share-social-outline" size={20} color="#FFFFFF" />
-              <Text style={styles.buttonText}>Share Tracking Details</Text>
+              <Text style={styles.buttonText}>Share Tracking</Text>
             </>
           )}
         </TouchableOpacity>
@@ -540,10 +564,30 @@ export default function ParcelDetailsModal() {
 
   const renderTimelineTab = () => {
     if (!parcel) return null;
-    
+
+    // Define the status order
     const statuses: ParcelStatus[] = ['pending', 'confirmed', 'picked_up', 'in_transit', 'delivered'];
-    const currentStatusIndex = statuses.indexOf(parcel.status as ParcelStatus);
     
+    // If the parcel is cancelled, handle specially
+    if (parcel.status === 'cancelled') {
+      return (
+        <View style={styles.tabContent}>
+          <View style={styles.cancelledContainer}>
+            <View style={styles.cancelledBadge}>
+              <Ionicons name="close-circle" size={24} color="#D32F2F" />
+              <Text style={styles.cancelledText}>Delivery Cancelled</Text>
+            </View>
+            <Text style={styles.cancelledDescription}>
+              This delivery has been cancelled and will not be processed further.
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    // Find the current status index
+    const currentStatusIndex = statuses.findIndex(s => s === parcel.status);
+
     return (
       <View style={styles.tabContent}>
         <View style={styles.timelineContainer}>
@@ -551,11 +595,11 @@ export default function ParcelDetailsModal() {
             const isCompleted = index <= currentStatusIndex && parcel.status !== 'cancelled';
             const isActive = index === currentStatusIndex && parcel.status !== 'cancelled';
             const statusInfo = statusConfig[status];
-            
+
             return (
               <View key={status} style={styles.timelineItem}>
                 <View style={styles.timelineLeft}>
-                  <View 
+                  <View
                     style={[
                       styles.timelineDot,
                       isCompleted && styles.completedDot,
@@ -570,19 +614,19 @@ export default function ParcelDetailsModal() {
                       />
                     )}
                   </View>
-                  
+
                   {index < statuses.length - 1 && (
-                    <View 
+                    <View
                       style={[
                         styles.timelineLine,
                         index < currentStatusIndex && styles.completedLine
-                      ]} 
+                      ]}
                     />
                   )}
                 </View>
-                
+
                 <View style={styles.timelineContent}>
-                  <Text 
+                  <Text
                     style={[
                       styles.timelineTitle,
                       isActive && styles.activeTimelineTitle,
@@ -591,11 +635,11 @@ export default function ParcelDetailsModal() {
                   >
                     {statusInfo.label}
                   </Text>
-                  
+
                   <Text style={styles.timelineDescription}>
                     {statusInfo.description}
                   </Text>
-                  
+
                   {isActive && (
                     <View style={[styles.timelineStatusBadge, { backgroundColor: statusInfo.backgroundColor }]}>
                       <Text style={[styles.timelineStatusText, { color: statusInfo.color }]}>
@@ -607,18 +651,6 @@ export default function ParcelDetailsModal() {
               </View>
             );
           })}
-          
-          {parcel.status === 'cancelled' && (
-            <View style={styles.cancelledContainer}>
-              <View style={styles.cancelledBadge}>
-                <Ionicons name="close-circle" size={24} color="#D32F2F" />
-                <Text style={styles.cancelledText}>Delivery Cancelled</Text>
-              </View>
-              <Text style={styles.cancelledDescription}>
-                This delivery has been cancelled and will not be processed further.
-              </Text>
-            </View>
-          )}
         </View>
       </View>
     );
@@ -626,7 +658,7 @@ export default function ParcelDetailsModal() {
 
   const renderActionButtons = () => {
     if (!parcel) return null;
-    
+
     return (
       <View style={styles.actionsContainer}>
         {parcel.status !== 'cancelled' && parcel.status !== 'delivered' && (
@@ -635,7 +667,7 @@ export default function ParcelDetailsModal() {
               <Ionicons name="chatbubble" size={24} color="#FFFFFF" />
               <Text style={styles.actionText}>Chat</Text>
             </TouchableOpacity>
-            
+
             {parcel.status === 'pending' && (
               <TouchableOpacity
                 style={[styles.actionButton, styles.cancelButton]}
@@ -659,83 +691,87 @@ export default function ParcelDetailsModal() {
           title: 'Parcel Details',
           headerShown: true,
           presentation: 'modal',
-          headerTitleStyle: {
-            fontWeight: '600',
+          headerStyle: {
+            backgroundColor: 'transparent',
           },
+          headerTransparent: true,
+          headerTintColor: '#fff',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()}>
-              <MaterialIcons name="close" size={24} color="#333" />
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
           ),
         }}
       />
-      
+
       <SafeAreaView style={styles.container}>
+        {/* Header with gradient background */}
+        <LinearGradient
+          colors={['#1976D2', '#64B5F6']}
+          start={[0, 0]}
+          end={[1, 1]}
+          style={styles.header}
+        >
+          <View style={styles.headerContent}>
+            {/* Parcel Status Banner */}
+            {parcel?.status && (
+              <View
+                style={[
+                  styles.statusBanner,
+                  { backgroundColor: statusConfig[parcel.status].backgroundColor }
+                ]}
+              >
+                <Ionicons
+                  name={statusConfig[parcel.status]?.icon as any}
+                  size={20}
+                  color={statusConfig[parcel.status].color}
+                />
+                <Text style={[styles.statusText, { color: statusConfig[parcel.status].color }]}>
+                  {statusConfig[parcel.status].label}
+                </Text>
+              </View>
+            )}
+
+            {/* Tracking Code */}
+            <Text style={styles.trackingLabel}>Tracking Code</Text>
+            <Text style={styles.trackingCode}>{parcel?.tracking_code || 'N/A'}</Text>
+
+            {/* Creation Date */}
+            <Text style={styles.dateText}>
+              Created: {parcel?.created_at ? formatDate(parcel.created_at) : 'N/A'}
+            </Text>
+          </View>
+        </LinearGradient>
+
+        {/* Loading State */}
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#4CAF50" />
+            <ActivityIndicator size="large" color="#1976D2" />
             <Text style={styles.loadingText}>Loading parcel details...</Text>
           </View>
         ) : error ? (
+          // Error State
           <View style={styles.errorContainer}>
             <MaterialIcons name="error-outline" size={64} color="#D32F2F" />
-            <Text style={styles.errorTitle}>Error</Text>
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity 
+            <Text style={styles.errorTitle}>Something went wrong</Text>
+            <Text style={styles.errorMessage}>{error}</Text>
+            <TouchableOpacity
               style={styles.retryButton}
               onPress={fetchParcelDetails}
             >
-              <Text style={styles.retryButtonText}>Retry</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => router.back()}
-            >
-              <Text style={styles.backButtonText}>Go Back</Text>
+              <Text style={styles.retryButtonText}>Try Again</Text>
             </TouchableOpacity>
           </View>
         ) : parcel ? (
           <>
-            {/* Parcel Header Section */}
-            <LinearGradient
-              colors={['#1976D2', '#42A5F5']}
-              style={styles.header}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <View style={styles.headerContent}>
-                <View style={styles.trackingInfo}>
-                  <Text style={styles.trackingLabel}>TRACKING NUMBER</Text>
-                  <Text style={styles.trackingCode}>{parcel.tracking_code}</Text>
-                  <Text style={styles.date}>
-                    Created on {formatDate(parcel.created_at)}
-                  </Text>
-                </View>
-                
-                <View style={[
-                  styles.statusBadge, 
-                  { backgroundColor: statusConfig[parcel.status as ParcelStatus]?.backgroundColor || '#F5F5F5' }
-                ]}>
-                  <Ionicons 
-                    name={statusConfig[parcel.status as ParcelStatus]?.icon as any || 'help-circle-outline'} 
-                    size={16} 
-                    color={statusConfig[parcel.status as ParcelStatus]?.color || '#757575'} 
-                  />
-                  <Text style={[
-                    styles.statusText,
-                    { color: statusConfig[parcel.status as ParcelStatus]?.color || '#757575' }
-                  ]}>
-                    {statusConfig[parcel.status as ParcelStatus]?.label || parcel.status?.toUpperCase()}
-                  </Text>
-                </View>
-              </View>
-            </LinearGradient>
-            
             {/* Tab Bar */}
             {renderTabBar()}
-            
+
             {/* Tab Content */}
-            <ScrollView 
+            <ScrollView
               style={styles.content}
               contentContainerStyle={styles.contentContainer}
               showsVerticalScrollIndicator={false}
@@ -744,7 +780,7 @@ export default function ParcelDetailsModal() {
               {activeTab === 'tracking' && renderTrackingTab()}
               {activeTab === 'timeline' && renderTimelineTab()}
             </ScrollView>
-            
+
             {/* Action Buttons */}
             {renderActionButtons()}
           </>
@@ -755,7 +791,7 @@ export default function ParcelDetailsModal() {
             <Text style={styles.notFoundText}>
               We couldn't find this parcel. It may have been deleted or you don't have access to view it.
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.backButton}
               onPress={() => router.back()}
             >
@@ -777,14 +813,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: 16,
+    paddingTop: 60,
     paddingBottom: 24,
     paddingHorizontal: 20,
   },
   headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   trackingInfo: {
     flex: 1,
@@ -801,16 +835,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 4,
   },
-  date: {
+  dateText: {
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
   },
-  statusBadge: {
+  statusBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 16,
+    marginBottom: 12,
   },
   statusText: {
     fontSize: 14,
@@ -1156,13 +1191,13 @@ const styles = StyleSheet.create({
   },
   errorTitle: {
     marginTop: 16,
-    fontSize: 16,
-    color: '#666',
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 8,
   },
-  errorText: {
-    marginTop: 16,
+  errorMessage: {
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
@@ -1180,21 +1215,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   backButton: {
-    backgroundColor: '#1976D2',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+    padding: 8,
+    borderRadius: 20,
+    marginLeft: 8,
   },
   backButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
+    color: '#1976D2',
+    fontSize: 16,
     fontWeight: '600',
   },
   content: {
     flex: 1,
   },
   contentContainer: {
-    padding: 16,
+    paddingBottom: 24,
   },
   notFoundContainer: {
     flex: 1,
@@ -1205,22 +1239,16 @@ const styles = StyleSheet.create({
   },
   notFoundTitle: {
     marginTop: 16,
-    fontSize: 16,
-    color: '#666',
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 8,
   },
   notFoundText: {
-    marginTop: 16,
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
     marginBottom: 24,
-  },
-  shareButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
+  }
 }); 

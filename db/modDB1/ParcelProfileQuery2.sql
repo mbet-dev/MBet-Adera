@@ -136,7 +136,7 @@ BEGIN
                 'updated_at', pp.updated_at,
                 'sender_id', pp.sender_id,
                 'receiver_id', pp.receiver_id,
-                'tracking_code', pp.tracking_code,
+                'tracking_code', pp.tracking_code::text,
                 'status', pp.status,
                 'pickup_address_id', pp.pickup_address_id,
                 'dropoff_address_id', pp.dropoff_address_id,
@@ -255,3 +255,78 @@ $$;
 
 -- Grant execute privileges to authenticated users
 GRANT EXECUTE ON FUNCTION get_active_deliveries(UUID) TO authenticated;
+
+-- Function to get a specific parcel by ID
+CREATE OR REPLACE FUNCTION get_parcel_by_id(
+    p_parcel_id UUID,
+    p_user_id UUID
+)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+    parcel_data JSONB;
+BEGIN
+    WITH parcel_details AS (
+        SELECT 
+            p.*,
+            pickup.address_line AS pickup_address_line,
+            pickup.city AS pickup_city,
+            pickup.latitude AS pickup_latitude,
+            pickup.longitude AS pickup_longitude,
+            dropoff.address_line AS dropoff_address_line,
+            dropoff.city AS dropoff_city,
+            dropoff.latitude AS dropoff_latitude,
+            dropoff.longitude AS dropoff_longitude
+        FROM 
+            parcels p
+        LEFT JOIN 
+            addresses pickup ON p.pickup_address_id = pickup.id
+        LEFT JOIN 
+            addresses dropoff ON p.dropoff_address_id = dropoff.id
+        WHERE 
+            p.id = p_parcel_id
+            AND (p.sender_id = p_user_id OR p.receiver_id = p_user_id)
+    )
+    SELECT 
+        CASE 
+            WHEN pd.id IS NULL THEN NULL
+            ELSE jsonb_build_object(
+                'id', pd.id,
+                'created_at', pd.created_at,
+                'updated_at', pd.updated_at,
+                'sender_id', pd.sender_id,
+                'receiver_id', pd.receiver_id,
+                'tracking_code', pd.tracking_code::text,
+                'status', pd.status,
+                'pickup_address_id', pd.pickup_address_id,
+                'dropoff_address_id', pd.dropoff_address_id,
+                'pickup_address', jsonb_build_object(
+                    'id', pd.pickup_address_id,
+                    'address_line', pd.pickup_address_line,
+                    'city', pd.pickup_city,
+                    'latitude', pd.pickup_latitude,
+                    'longitude', pd.pickup_longitude
+                ),
+                'dropoff_address', jsonb_build_object(
+                    'id', pd.dropoff_address_id,
+                    'address_line', pd.dropoff_address_line,
+                    'city', pd.dropoff_city,
+                    'latitude', pd.dropoff_latitude,
+                    'longitude', pd.dropoff_longitude
+                ),
+                'pickup_contact', pd.pickup_contact,
+                'dropoff_contact', pd.dropoff_contact,
+                'package_size', pd.package_size,
+                'package_description', pd.package_description,
+                'is_fragile', pd.is_fragile,
+                'estimated_price', pd.estimated_price
+            )
+        END INTO parcel_data
+    FROM parcel_details pd;
+    
+    RETURN parcel_data;
+END;
+$$;
+
+-- Grant execute privileges to authenticated users
+GRANT EXECUTE ON FUNCTION get_parcel_by_id(UUID, UUID) TO authenticated;
