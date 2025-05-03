@@ -9,12 +9,13 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <PaperProvider theme={theme}>
-    <AuthProvider>
+        <AuthProvider>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="(auth)" />
-      </Stack>
-    </AuthProvider>
+            <Stack.Screen name="(modals)" options={{ presentation: 'modal' }} />
+          </Stack>
+        </AuthProvider>
       </PaperProvider>
     </SafeAreaProvider>
   );

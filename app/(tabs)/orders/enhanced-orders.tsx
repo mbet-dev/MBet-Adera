@@ -127,12 +127,32 @@ export default function EnhancedOrdersScreen() {
     }
 
     setIsSearching(true);
-    const searchResults = parcels.filter(parcel => 
-      parcel.tracking_code.toLowerCase().includes(query.toLowerCase()) ||
-      parcel.pickup_address?.address_line.toLowerCase().includes(query.toLowerCase()) ||
-      parcel.dropoff_address?.address_line.toLowerCase().includes(query.toLowerCase())
-    );
-    setSearchResults(searchResults);
+
+    try {
+      // For a better search experience, search directly on the backend if possible
+      if (user && query.length > 2) {
+        // If we have a backend search endpoint, use it
+        const results = await parcelService.searchParcels(user.id, query);
+        setSearchResults(results);
+      } else {
+        // Otherwise fall back to client-side filtering
+        const searchResults = parcels.filter(parcel => 
+          parcel.tracking_code.toLowerCase().includes(query.toLowerCase()) ||
+          parcel.pickup_address?.address_line?.toLowerCase().includes(query.toLowerCase()) ||
+          parcel.dropoff_address?.address_line?.toLowerCase().includes(query.toLowerCase())
+        );
+        setSearchResults(searchResults);
+      }
+    } catch (error) {
+      console.error('Error during search:', error);
+      // If search fails, fall back to client-side filtering
+      const searchResults = parcels.filter(parcel => 
+        parcel.tracking_code.toLowerCase().includes(query.toLowerCase()) ||
+        parcel.pickup_address?.address_line?.toLowerCase().includes(query.toLowerCase()) ||
+        parcel.dropoff_address?.address_line?.toLowerCase().includes(query.toLowerCase())
+      );
+      setSearchResults(searchResults);
+    }
   };
 
   const handleRefresh = async () => {
@@ -148,7 +168,8 @@ export default function EnhancedOrdersScreen() {
   };
 
   const handleParcelPress = (parcel: Parcel) => {
-    router.push(`/orders/${parcel.id}` as any);
+    // Use the new modal screen instead of the tab screen
+    router.push(`/parcel-details?id=${parcel.id}` as any);
   };
 
   const renderStatisticsCards = () => (

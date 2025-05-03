@@ -102,3 +102,13 @@ export interface Partner {
   created_at: string;
   updated_at: string;
 }
+
+export interface Profile {
+  id: string;
+  full_name?: string;
+  phone_number?: string;
+  avatar_url?: string;
+  email?: string;
+  created_at?: string;
+  updated_at?: string;
+}

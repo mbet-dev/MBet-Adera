@@ -206,15 +206,42 @@ export const parcelService = {
   /**
    * Cancel a parcel
    */
-  async cancelParcel(parcelId: string, userId: string): Promise<Parcel | null> { 
-    const currentParcel = await this.getParcelById(parcelId, userId); 
-    if (currentParcel && (currentParcel.status === 'pending' || currentParcel.status === 'confirmed')) {
-       return this.updateParcelStatus(parcelId, 'cancelled');
-    } else {
-      console.warn(`Parcel ${parcelId} cannot be cancelled in status: ${currentParcel?.status}`);
-      // Optionally throw an error or return the current parcel without change
-      // throw new Error('Parcel cannot be cancelled in its current state.');
-      return currentParcel;
+  async cancelParcel(parcelId: string, userId: string, reason: string = ''): Promise<boolean> {
+    try {
+      // First verify that the user is allowed to cancel this parcel
+      const { data: parcel, error: fetchError } = await supabase
+        .from('parcels')
+        .select('id, status')
+        .eq('id', parcelId)
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      if (!parcel) {
+        throw new Error('Parcel not found or you do not have permission to cancel it');
+      }
+      
+      if (!['pending', 'confirmed'].includes(parcel.status)) {
+        throw new Error('This parcel cannot be cancelled at its current status');
+      }
+      
+      // Update the parcel status to cancelled
+      const { error: updateError } = await supabase
+        .from('parcels')
+        .update({ 
+          status: 'cancelled',
+          updated_at: new Date().toISOString(),
+          cancellation_reason: reason || 'Cancelled by user'
+        })
+        .eq('id', parcelId);
+      
+      if (updateError) throw updateError;
+      
+      return true;
+    } catch (error) {
+      console.error('Error cancelling parcel:', error);
+      throw error;
     }
   },
 
@@ -387,5 +414,71 @@ export const parcelService = {
       cancelled: 0,
       total: 0
     };
+  },
+
+  /**
+   * Search parcels by query string
+   */
+  async searchParcels(userId: string, query: string): Promise<Parcel[]> {
+    if (!query || query.trim().length < 2) {
+      return [];
+    }
+
+    try {
+      // First search by tracking code which is the most specific identifier
+      const { data: trackingCodeResults, error: trackingError } = await supabase
+        .from('parcels')
+        .select(`
+          *,
+          pickup_address:pickup_address_id(*),
+          dropoff_address:dropoff_address_id(*)
+        `)
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .ilike('tracking_code', `%${query}%`)
+        .limit(10);
+      
+      if (trackingError) throw trackingError;
+      
+      // If we found results by tracking code, return them
+      if (trackingCodeResults && trackingCodeResults.length > 0) {
+        return trackingCodeResults as Parcel[];
+      }
+      
+      // Otherwise perform a more general search on other fields
+      // This is less efficient but provides a better user experience
+      // In a production app, you might want to use a proper search index
+      const { data: addressResults, error: addressError } = await supabase
+        .from('parcels')
+        .select(`
+          *,
+          pickup_address:pickup_address_id(address_line, city, id, latitude, longitude),
+          dropoff_address:dropoff_address_id(address_line, city, id, latitude, longitude)
+        `)
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .limit(20);
+      
+      if (addressError) throw addressError;
+      
+      // Filter results client-side based on address info
+      const queryLower = query.toLowerCase();
+      const filteredResults = (addressResults || []).filter(parcel => {
+        const pickupAddress = parcel.pickup_address?.address_line?.toLowerCase() || '';
+        const dropoffAddress = parcel.dropoff_address?.address_line?.toLowerCase() || '';
+        const pickupCity = parcel.pickup_address?.city?.toLowerCase() || '';
+        const dropoffCity = parcel.dropoff_address?.city?.toLowerCase() || '';
+        
+        return (
+          pickupAddress.includes(queryLower) ||
+          dropoffAddress.includes(queryLower) ||
+          pickupCity.includes(queryLower) ||
+          dropoffCity.includes(queryLower)
+        );
+      });
+      
+      return filteredResults as Parcel[];
+    } catch (error) {
+      console.error('Error searching parcels:', error);
+      return [];
+    }
   },
 };
