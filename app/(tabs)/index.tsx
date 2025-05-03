@@ -593,17 +593,19 @@ export default function Home() {
 
     return (
       <View>
-        <View style={styles.deliveriesHeader}>
-          <Text style={styles.deliveriesCount}>
-            {activeDeliveries.length} Active {activeDeliveries.length === 1 ? 'Delivery' : 'Deliveries'}
-            {activeDeliveries.length > 1 ? ` (${activeDeliveryIndex + 1}/${activeDeliveries.length})` : ''}
-          </Text>
-          <TouchableOpacity 
-            style={styles.refreshButton}
-            onPress={fetchActiveDeliveries}
-          >
-            <MaterialIcons name="refresh" size={18} color="#4CAF50" />
-          </TouchableOpacity>
+        <View style={styles.activeDeliveriesHeader}>
+          <View style={styles.headerTitleContainer}>
+            <MaterialIcons name="local-shipping" size={20} color="#4CAF50" />
+            <Text style={styles.sectionTitle}>Active Deliveries</Text>
+          </View>
+          {activeDeliveries.length > 0 && (
+            <TouchableOpacity 
+              style={styles.refreshButton}
+              onPress={fetchActiveDeliveries}
+            >
+              <MaterialIcons name="refresh" size={18} color="#4CAF50" />
+            </TouchableOpacity>
+          )}
         </View>
         
         {/* Horizontal scrolling carousel for active deliveries */}
@@ -704,8 +706,18 @@ export default function Home() {
             
             {/* Active Deliveries */}
             <View style={styles.activeDeliveriesHeader}>
-              <MaterialIcons name="local-shipping" size={20} color="#4CAF50" />
-              <Text style={styles.sectionTitle}>Active Deliveries</Text>
+              <View style={styles.headerTitleContainer}>
+                <MaterialIcons name="local-shipping" size={20} color="#4CAF50" />
+                <Text style={styles.sectionTitle}>Active Deliveries</Text>
+              </View>
+              {activeDeliveries.length > 0 && (
+                <TouchableOpacity 
+                  style={styles.refreshButton}
+                  onPress={fetchActiveDeliveries}
+                >
+                  <MaterialIcons name="refresh" size={18} color="#4CAF50" />
+                </TouchableOpacity>
+              )}
             </View>
             
             <View style={styles.deliveriesContainer}>
@@ -1291,19 +1303,15 @@ const styles = StyleSheet.create({
   },
   activeDeliveriesHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  deliveriesHeader: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    paddingHorizontal: 16,
   },
-  deliveriesCount: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   refreshButton: {
     padding: 8,

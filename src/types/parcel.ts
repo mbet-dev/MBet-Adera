@@ -43,6 +43,11 @@ export interface Parcel {
   dropoff_working_hours?: string;
   dropoff_partner_color?: string;
   estimated_delivery?: string; // Estimated pickup or delivery time
+  weight?: number;
+  price?: number;
+  notes?: string;
+  sender?: Partner;
+  receiver?: Partner;
 }
 
 export interface Transaction {
@@ -84,4 +89,16 @@ export interface NewDeliveryFormData {
   // Payment details
   paymentMethod: PaymentMethod;
   deliveryFee: number;
+}
+
+export interface Partner {
+  id: string;
+  business_name: string;
+  contact_person: string;
+  phone: string;
+  email: string;
+  color?: string;
+  logo_url?: string;
+  created_at: string;
+  updated_at: string;
 }
