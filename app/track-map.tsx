@@ -412,7 +412,7 @@ const MapTrackingScreen = () => {
                   size={200}
                   backgroundColor="#FFFFFF"
                   color="#000000"
-                  logo={require('../assets/images/icon.png')}
+                  logo={require('../assets/images/logo2.png')}
                   logoSize={logoSize}
                   logoBackgroundColor="white"
                   logoBorderRadius={10}
@@ -424,7 +424,7 @@ const MapTrackingScreen = () => {
                 size={200}
                 backgroundColor="#FFFFFF"
                 color="#000000"
-                logo={require('../assets/images/icon.png')}
+                logo={require('../assets/images/logo2.png')}
                 logoSize={logoSize}
                 logoBackgroundColor="white"
                 logoBorderRadius={10}
