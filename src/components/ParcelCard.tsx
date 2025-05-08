@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated, LayoutAnimation } from 'react-native';
 import { MaterialCommunityIcons, MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { Parcel, ParcelStatus } from '@/types/parcel';
 import { formatDate, formatCurrency } from '@/utils/formatting';
+import { useAuth } from '@/context/AuthContext';
 
 const statusConfig: Record<ParcelStatus, {
   label: string;
@@ -67,7 +68,32 @@ export const ParcelCard: React.FC<ParcelCardProps> = ({
   showStatus = true
 }) => {
   const [expanded, setExpanded] = useState(false);
-  const status = statusConfig[parcel.status as ParcelStatus];
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const { user } = useAuth();
+  
+  // Determine if current user is sender or receiver
+  const isSender = user?.id === parcel.sender_id;
+  const isReceiver = user?.id === parcel.receiver_id;
+  
+  // Ensure parcel and its fields have safe defaults
+  const safeParcel = {
+    ...parcel,
+    tracking_code: parcel.tracking_code || 'No Tracking ID',
+    status: parcel.status || 'pending',
+    package_size: parcel.package_size || '',
+    pickup_address: parcel.pickup_address || null,
+    dropoff_address: parcel.dropoff_address || null
+  };
+  
+  const status = safeParcel.status && statusConfig[safeParcel.status as ParcelStatus] 
+    ? statusConfig[safeParcel.status as ParcelStatus]
+    : {
+        label: 'Unknown',
+        color: '#757575',
+        backgroundColor: '#f5f5f5',
+        icon: 'help-circle',
+        description: 'Status unknown'
+      };
 
   const handlePress = () => {
     if (onPress) {
@@ -77,9 +103,64 @@ export const ParcelCard: React.FC<ParcelCardProps> = ({
     }
   };
 
+  // Derive key package info
+  const packageInfo = [
+    safeParcel.package_size && `${safeParcel.package_size.charAt(0).toUpperCase() + safeParcel.package_size.slice(1)} package`,
+    safeParcel.weight && `${safeParcel.weight} kg`,
+    safeParcel.is_fragile && 'Fragile'
+  ].filter(Boolean).join(' • ');
+
+  // Render location points based on user role
+  const renderLocationPoints = () => {
+    const locations = [
+      {
+        type: 'Pickup',
+        address: safeParcel.pickup_address,
+        dotStyle: styles.pickupDot,
+        label: isReceiver ? 'From' : 'Pickup'
+      },
+      {
+        type: 'Dropoff',
+        address: safeParcel.dropoff_address,
+        dotStyle: styles.dropoffDot,
+        label: isSender ? 'To' : 'Dropoff'
+      }
+    ];
+
+    // If user is receiver, reverse the order
+    if (isReceiver) {
+      locations.reverse();
+    }
+
+    return (
+      <View style={styles.locationSection}>
+        {locations.map((location, index) => (
+          <React.Fragment key={location.type}>
+            <View style={styles.locationPoint}>
+              <View style={[styles.locationDot, location.dotStyle]} />
+              <View style={styles.locationInfo}>
+                <Text style={styles.locationLabel}>{location.label}</Text>
+                <Text style={styles.addressText}>
+                  {location.address?.address_line || 'N/A'}
+                </Text>
+                <Text style={styles.cityText}>
+                  {location.address?.city || 'N/A'}
+                </Text>
+              </View>
+            </View>
+            {index === 0 && <View style={styles.routeLine} />}
+          </React.Fragment>
+        ))}
+      </View>
+    );
+  };
+
   return (
     <TouchableOpacity
-      style={styles.parcelCard}
+      style={[
+        styles.parcelCard,
+        expanded && styles.parcelCardExpanded
+      ]}
       onPress={handlePress}
       activeOpacity={0.7}
     >
@@ -93,103 +174,90 @@ export const ParcelCard: React.FC<ParcelCardProps> = ({
           />
           <View style={styles.headerInfo}>
             <View style={styles.trackingCodeContainer}>
-              <Text style={styles.trackingCode}>#{parcel.tracking_code}</Text>
-              <TouchableOpacity 
-                style={styles.copyButton}
-                onPress={() => {
-                  if (Platform.OS === 'web') {
-                    navigator.clipboard.writeText(parcel.tracking_code);
-                  }
-                }}
-              >
-                <MaterialCommunityIcons
-                  name="content-copy"
-                  size={16}
-                  color="#666"
-                />
-              </TouchableOpacity>
+              <Text style={styles.trackingCode}>
+                {safeParcel.tracking_code === 'No Tracking ID' 
+                  ? 'No Tracking ID' 
+                  : `#${safeParcel.tracking_code}`}
+              </Text>
+              {safeParcel.tracking_code && safeParcel.tracking_code !== 'No Tracking ID' && (
+                <TouchableOpacity 
+                  style={styles.copyButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    if (Platform.OS === 'web') {
+                      navigator.clipboard.writeText(safeParcel.tracking_code);
+                    }
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="content-copy"
+                    size={16}
+                    color="#666"
+                  />
+                </TouchableOpacity>
+              )}
             </View>
-            <Text style={styles.date}>{formatDate(parcel.created_at)}</Text>
+            <Text style={styles.date}>{formatDate(safeParcel.created_at)}</Text>
           </View>
         </View>
         {showStatus && (
           <View
             style={[
               styles.statusContainer,
-              { backgroundColor: status.backgroundColor },
+              { backgroundColor: status?.backgroundColor || '#f5f5f5' },
             ]}
           >
             <MaterialCommunityIcons
-              name={status.icon as any}
+              name={(status?.icon as any) || 'help-circle'}
               size={16}
-              color={status.color}
+              color={status?.color || '#757575'}
             />
-            <Text style={[styles.statusText, { color: status.color }]}>
-              {status.label}
+            <Text style={[styles.statusText, { color: status?.color || '#757575' }]}>
+              {status?.label || 'Unknown'}
             </Text>
           </View>
         )}
       </View>
 
+      {/* Package Summary */}
+      {packageInfo && (
+        <View style={styles.packageSummary}>
+          <MaterialIcons name="info-outline" size={14} color="#666" />
+          <Text style={styles.packageSummaryText}>{packageInfo}</Text>
+        </View>
+      )}
+
       {/* Location Section */}
-      <View style={styles.locationSection}>
-        <View style={styles.locationPoint}>
-          <View style={[styles.locationDot, styles.pickupDot]} />
-          <View style={styles.locationInfo}>
-            <Text style={styles.locationLabel}>Pickup</Text>
-            <Text style={styles.addressText}>
-              {parcel.pickup_address?.address_line || 'N/A'}
-            </Text>
-            <Text style={styles.cityText}>
-              {parcel.pickup_address?.city || 'N/A'}
-            </Text>
-          </View>
-        </View>
-        
-        <View style={styles.routeLine} />
-        
-        <View style={styles.locationPoint}>
-          <View style={[styles.locationDot, styles.dropoffDot]} />
-          <View style={styles.locationInfo}>
-            <Text style={styles.locationLabel}>Dropoff</Text>
-            <Text style={styles.addressText}>
-              {parcel.dropoff_address?.address_line || 'N/A'}
-            </Text>
-            <Text style={styles.cityText}>
-              {parcel.dropoff_address?.city || 'N/A'}
-            </Text>
-          </View>
-        </View>
-      </View>
+      {renderLocationPoints()}
 
       {/* Package Details Section */}
       <View style={styles.detailsSection}>
         <View style={styles.detailItem}>
           <MaterialIcons name="inventory" size={16} color="#666" />
           <Text style={styles.detailText}>
-            Size: {parcel.package_size ? 
-              parcel.package_size.charAt(0).toUpperCase() + 
-              parcel.package_size.slice(1) : 'N/A'}
+            Size: {safeParcel.package_size ? 
+              safeParcel.package_size.charAt(0).toUpperCase() + 
+              safeParcel.package_size.slice(1) : 'N/A'}
           </Text>
         </View>
         
-        {parcel.weight && (
+        {safeParcel.weight && (
           <View style={styles.detailItem}>
             <MaterialCommunityIcons name="weight" size={16} color="#666" />
-            <Text style={styles.detailText}>{parcel.weight} kg</Text>
+            <Text style={styles.detailText}>{safeParcel.weight} kg</Text>
           </View>
         )}
         
-        {parcel.price && (
+        {safeParcel.price && (
           <View style={styles.detailItem}>
             <MaterialIcons name="attach-money" size={16} color="#666" />
             <Text style={styles.detailText}>
-              {formatCurrency(parcel.price)}
+              {formatCurrency(safeParcel.price)}
             </Text>
           </View>
         )}
         
-        {parcel.is_fragile && (
+        {safeParcel.is_fragile && (
           <View style={styles.detailItem}>
             <MaterialIcons name="warning" size={16} color="#f57c00" />
             <Text style={[styles.detailText, { color: '#f57c00' }]}>
@@ -200,11 +268,11 @@ export const ParcelCard: React.FC<ParcelCardProps> = ({
       </View>
 
       {/* Estimated Delivery */}
-      {parcel.estimated_delivery && (
+      {safeParcel.estimated_delivery && (
         <View style={styles.estimatedDelivery}>
           <MaterialIcons name="schedule" size={16} color="#1976D2" />
           <Text style={styles.estimatedText}>
-            Estimated delivery: {parcel.estimated_delivery}
+            Estimated delivery: {safeParcel.estimated_delivery}
           </Text>
         </View>
       )}
@@ -237,6 +305,17 @@ const styles = StyleSheet.create({
       },
       android: {
         elevation: 2,
+      },
+    }),
+  },
+  parcelCardExpanded: {
+    ...Platform.select({
+      ios: {
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 3,
       },
     }),
   },
@@ -369,5 +448,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontStyle: 'italic',
+  },
+  packageSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  packageSummaryText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 8,
   },
 }); 

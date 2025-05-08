@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
+import { router } from 'expo-router';
 
 type AuthContextType = {
   user: User | null;
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const initialize = async () => {
       try {
         setIsLoading(true);
+        setError(null);
 
         // Get current session
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -56,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(session?.user ?? null);
         }
       } catch (error: any) {
+        console.error('Auth initialization error:', error);
         if (mounted) {
           setError(error);
         }
@@ -74,6 +77,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(newSession);
         setUser(newSession?.user ?? null);
         setIsLoading(false);
+
+        // Handle navigation based on auth state
+        if (event === 'SIGNED_IN') {
+          router.replace('/(tabs)');
+        } else if (event === 'SIGNED_OUT') {
+          router.replace('/auth/login');
+        }
       }
     });
 

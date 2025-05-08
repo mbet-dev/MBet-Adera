@@ -4,10 +4,17 @@
     "slug": "mbet-adera",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/logo2.png",
+    "icon": "./assets/images/icon_mbet_adera1.png",
     "scheme": "mbetsupachapa",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "enabled": true,
+      "fallbackToCacheTimeout": 0
+    },
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -38,7 +45,9 @@
       "bundler": "metro",
       "build": {
         "babel": {
-          "include": ["react-native-maps"]
+          "include": [
+            "react-native-maps"
+          ]
         }
       },
       "webpack": {
@@ -47,8 +56,12 @@
         }
       }
     },
-    "output": "static",
-    "favicon": "./assets/images/logo XX1.png"
+    "owner": "ermax7",
+    "extra": {
+      "eas": {
+        "projectId": "880e35c2-c8c0-4d8f-96f7-5bcf13981557"
+      }
+    }
   },
   "plugins": [
     "expo-router",
@@ -70,10 +83,5 @@
   ],
   "experiments": {
     "typedRoutes": true
-  },
-  "splash": {
-    "image": "./assets/images/delivery tracking images.jpg",
-    "resizeMode": "contain",
-    "backgroundColor": "#ffffff"
   }
 }

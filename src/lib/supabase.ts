@@ -1,6 +1,24 @@
-import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
-import { storage } from './storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import 'react-native-url-polyfill/auto';
+
+// Initialize Supabase with error handling
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase configuration. Please check your environment variables.');
+  throw new Error('Missing Supabase configuration');
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+});
 
 // Basic type definition for Database to avoid type errors
 export interface Database {
@@ -20,29 +38,4 @@ export interface Database {
       // Add other tables as needed
     };
   };
-}
-
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
-
-// Validate environment variables
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    'Missing Supabase credentials. Make sure EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY are set in the .env file.'
-  );
-}
-
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: storage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
-  global: {
-    // Custom fetch implementation for SSR
-    fetch: (...args) => {
-      return fetch(...args);
-    },
-  },
-}); 
+} 

@@ -73,7 +73,6 @@ local.properties
 # node.js
 node_modules/
 npm-debug.log
-yarn-debug.log
 yarn-error.log
 
 # Bundle artifacts
@@ -107,3 +106,7 @@ coverage/
 # Production build
 build/
 dist/
+
+# Native folders
+/android
+/ios
