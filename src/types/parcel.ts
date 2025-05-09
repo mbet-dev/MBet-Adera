@@ -11,43 +11,53 @@ export interface Address {
 
 export interface Parcel {
   id: string;
-  created_at: string;
-  updated_at: string;
-  sender_id: string;
-  receiver_id: string;
   tracking_code: string;
-  status: ParcelStatus;
+  status: string;
   pickup_address_id: string;
   dropoff_address_id: string;
-  pickup_address: Address;
-  dropoff_address: Address;
-  pickup_contact?: string;
-  dropoff_contact?: string;
-  package_size: PackageSize;
+  sender_id: string;
+  receiver_id: string;
+  created_at: string;
+  updated_at: string;
+  package_size?: string;
   package_description?: string;
-  is_fragile: boolean;
-  // Additional fields for delivery details
-  pickup_latitude?: number;
-  pickup_longitude?: number;
-  dropoff_latitude?: number;
-  dropoff_longitude?: number;
-  distance?: number;
-  formatted_distance?: string;
+  is_fragile?: boolean;
   estimated_price?: number;
-  formatted_price?: string;
-  status_display?: string;
-  pickup_business_name?: string;
-  pickup_working_hours?: string;
-  pickup_partner_color?: string;
-  dropoff_business_name?: string;
-  dropoff_working_hours?: string;
-  dropoff_partner_color?: string;
-  estimated_delivery?: string; // Estimated pickup or delivery time
-  weight?: number;
-  price?: number;
-  notes?: string;
-  sender?: Partner;
-  receiver?: Partner;
+  pickup_address?: {
+    id: string;
+    address_line: string;
+    city: string;
+    latitude: number;
+    longitude: number;
+    business_name?: string;
+    partner_color?: string;
+  };
+  dropoff_address?: {
+    id: string;
+    address_line: string;
+    city: string;
+    latitude: number;
+    longitude: number;
+    business_name?: string;
+    partner_color?: string;
+  };
+  estimated_delivery?: string;
+  sender?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    full_name: string;
+    phone_number: string;
+    avatar_url: string;
+  };
+  recipient?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    full_name: string;
+    phone_number: string;
+    avatar_url: string;
+  };
 }
 
 export interface Transaction {

@@ -13,6 +13,7 @@ defaultConfig.resolver.extraNodeModules = {
   ...defaultConfig.resolver.extraNodeModules,
   'react-native-maps': path.resolve(__dirname, './src/components/empty-module.js'),
   'react-native/Libraries/Utilities/codegenNativeCommands': path.resolve(__dirname, './src/components/empty-module.js'),
+  '@': path.resolve(__dirname, './'),
 };
 
 // Add platform-specific mappings

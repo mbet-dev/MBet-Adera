@@ -9,16 +9,26 @@ BEGIN
       p.*,
       pickup.latitude AS pickup_latitude,
       pickup.longitude AS pickup_longitude,
-      pickup.address_line AS pickup_address,
+      pickup.address_line::text AS pickup_address,
+      pickup.city::text AS pickup_city,
       dropoff.latitude AS dropoff_latitude,
       dropoff.longitude AS dropoff_longitude,
-      dropoff.address_line AS dropoff_address
+      dropoff.address_line::text AS dropoff_address,
+      dropoff.city::text AS dropoff_city,
+      pickup_partner.business_name::text AS pickup_business_name,
+      pickup_partner.color::text AS pickup_partner_color,
+      dropoff_partner.business_name::text AS dropoff_business_name,
+      dropoff_partner.color::text AS dropoff_partner_color
     FROM 
       parcels p
     LEFT JOIN 
       addresses pickup ON p.pickup_address_id = pickup.id
     LEFT JOIN 
       addresses dropoff ON p.dropoff_address_id = dropoff.id
+    LEFT JOIN 
+      partners pickup_partner ON pickup.id = pickup_partner.address_id
+    LEFT JOIN 
+      partners dropoff_partner ON dropoff.id = dropoff_partner.address_id
     WHERE 
       (p.sender_id = user_id OR p.receiver_id = user_id) AND
       p.status IN ('pending', 'confirmed', 'picked_up', 'in_transit')
@@ -32,34 +42,34 @@ BEGIN
       'updated_at', ap.updated_at,
       'sender_id', ap.sender_id,
       'receiver_id', ap.receiver_id,
-      'tracking_code', ap.tracking_code,
-      'status', ap.status,
+      'tracking_code', ap.tracking_code::text,
+      'status', ap.status::text,
       'pickup_address_id', ap.pickup_address_id,
       'dropoff_address_id', ap.dropoff_address_id,
-      'pickup_address', ap.pickup_address,
-      'dropoff_address', ap.dropoff_address,
-      'pickup_contact', ap.pickup_contact,
-      'dropoff_contact', ap.dropoff_contact,
-      'package_size', ap.package_size,
-      'package_description', ap.package_description,
-      'is_fragile', ap.is_fragile,
-      'pickup_latitude', ap.pickup_latitude,
-      'pickup_longitude', ap.pickup_longitude,
-      'dropoff_latitude', ap.dropoff_latitude,
-      'dropoff_longitude', ap.dropoff_longitude,
-      'status_display', INITCAP(REPLACE(ap.status, '_', ' ')),
-      'pickup_address_obj', jsonb_build_object(
+      'pickup_address', jsonb_build_object(
         'id', ap.pickup_address_id,
         'address_line', ap.pickup_address,
         'latitude', ap.pickup_latitude,
-        'longitude', ap.pickup_longitude
+        'longitude', ap.pickup_longitude,
+        'city', ap.pickup_city,
+        'business_name', ap.pickup_business_name,
+        'partner_color', ap.pickup_partner_color
       ),
-      'dropoff_address_obj', jsonb_build_object(
+      'dropoff_address', jsonb_build_object(
         'id', ap.dropoff_address_id,
         'address_line', ap.dropoff_address,
         'latitude', ap.dropoff_latitude,
-        'longitude', ap.dropoff_longitude
-      )
+        'longitude', ap.dropoff_longitude,
+        'city', ap.dropoff_city,
+        'business_name', ap.dropoff_business_name,
+        'partner_color', ap.dropoff_partner_color
+      ),
+      'pickup_contact', ap.pickup_contact::text,
+      'dropoff_contact', ap.dropoff_contact::text,
+      'package_size', ap.package_size::text,
+      'package_description', ap.package_description::text,
+      'is_fragile', ap.is_fragile,
+      'estimated_price', ap.estimated_price
     )
   FROM 
     active_parcels ap;

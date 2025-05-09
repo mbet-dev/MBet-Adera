@@ -31,19 +31,19 @@ export default function OrderDetailsScreen() {
       const result = await parcelService.getParcelById(id as string, user.id);
       
       if (!result) {
-        Alert.alert('Error', 'Failed to load parcel details');
+        Alert.alert('Error', 'Failed to load parcel details', [{ text: 'OK', onPress: () => router.back() }]);
+        console.log("Parcel not found, navigating back");
         router.back();
       } else {
         setParcel(result);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to load parcel details');
+      Alert.alert('Error', 'Failed to load parcel details. Please check your connection and try again.', [{ text: 'OK', onPress: () => router.back() }]);
+      console.error("Error fetching parcel details:", error);
       router.back();
     }
-    
     setLoading(false);
   };
-  
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return Colors.light.warning;
@@ -416,4 +416,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-}); 
+});

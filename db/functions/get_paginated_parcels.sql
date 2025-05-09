@@ -33,16 +33,16 @@ BEGIN
             p.*,
             pickup.latitude AS pickup_latitude,
             pickup.longitude AS pickup_longitude,
-            pickup.address_line AS pickup_address,
-            pickup.city AS pickup_city,
+            pickup.address_line::text AS pickup_address,
+            pickup.city::text AS pickup_city,
             dropoff.latitude AS dropoff_latitude,
             dropoff.longitude AS dropoff_longitude,
-            dropoff.address_line AS dropoff_address,
-            dropoff.city AS dropoff_city,
-            pickup_partner.business_name AS pickup_business_name,
-            pickup_partner.color AS pickup_partner_color,
-            dropoff_partner.business_name AS dropoff_business_name,
-            dropoff_partner.color AS dropoff_partner_color
+            dropoff.address_line::text AS dropoff_address,
+            dropoff.city::text AS dropoff_city,
+            pickup_partner.business_name::text AS pickup_business_name,
+            pickup_partner.color::text AS pickup_partner_color,
+            dropoff_partner.business_name::text AS dropoff_business_name,
+            dropoff_partner.color::text AS dropoff_partner_color
         FROM 
             parcels p
         LEFT JOIN 
@@ -50,9 +50,9 @@ BEGIN
         LEFT JOIN 
             addresses dropoff ON p.dropoff_address_id = dropoff.id
         LEFT JOIN 
-            partners pickup_partner ON pickup.partner_id = pickup_partner.id
+            partners pickup_partner ON pickup.id = pickup_partner.address_id
         LEFT JOIN 
-            partners dropoff_partner ON dropoff.partner_id = dropoff_partner.id
+            partners dropoff_partner ON dropoff.id = dropoff_partner.address_id
         WHERE 
             (p.sender_id = user_id OR p.receiver_id = user_id)
             AND (
@@ -78,8 +78,8 @@ BEGIN
                 'updated_at', pp.updated_at,
                 'sender_id', pp.sender_id,
                 'receiver_id', pp.receiver_id,
-                'tracking_code', pp.tracking_code,
-                'status', pp.status,
+                'tracking_code', pp.tracking_code::text,
+                'status', pp.status::text,
                 'pickup_address_id', pp.pickup_address_id,
                 'dropoff_address_id', pp.dropoff_address_id,
                 'pickup_address', jsonb_build_object(
@@ -87,44 +87,36 @@ BEGIN
                     'address_line', pp.pickup_address,
                     'latitude', pp.pickup_latitude,
                     'longitude', pp.pickup_longitude,
-                    'city', pp.pickup_city
+                    'city', pp.pickup_city,
+                    'business_name', pp.pickup_business_name,
+                    'partner_color', pp.pickup_partner_color
                 ),
                 'dropoff_address', jsonb_build_object(
                     'id', pp.dropoff_address_id,
                     'address_line', pp.dropoff_address,
                     'latitude', pp.dropoff_latitude,
                     'longitude', pp.dropoff_longitude,
-                    'city', pp.dropoff_city
+                    'city', pp.dropoff_city,
+                    'business_name', pp.dropoff_business_name,
+                    'partner_color', pp.dropoff_partner_color
                 ),
-                'pickup_contact', pp.pickup_contact,
-                'dropoff_contact', pp.dropoff_contact,
-                'package_size', pp.package_size,
-                'package_description', pp.package_description,
+                'pickup_contact', pp.pickup_contact::text,
+                'dropoff_contact', pp.dropoff_contact::text,
+                'package_size', pp.package_size::text,
+                'package_description', pp.package_description::text,
                 'is_fragile', pp.is_fragile,
-                'estimated_price', pp.estimated_price,
-                'pickup_business_name', pp.pickup_business_name,
-                'pickup_partner_color', pp.pickup_partner_color,
-                'dropoff_business_name', pp.dropoff_business_name,
-                'dropoff_partner_color', pp.dropoff_partner_color
+                'estimated_price', pp.estimated_price
             ) AS parcel_json
         FROM 
             paginated_parcels pp
     )
     SELECT 
         jsonb_build_object(
-            'parcels', jsonb_agg(jp.parcel_json),
+            'parcels', COALESCE(jsonb_agg(jp.parcel_json), '[]'::jsonb),
             'total_count', total_count
         ) INTO parcels_data
     FROM 
         jsonb_parcels jp;
-    
-    -- Return empty array if no parcels found
-    IF parcels_data IS NULL THEN
-        RETURN jsonb_build_object(
-            'parcels', '[]'::jsonb,
-            'total_count', 0
-        );
-    END IF;
     
     RETURN parcels_data;
 END;

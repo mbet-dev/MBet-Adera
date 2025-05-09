@@ -275,8 +275,8 @@ export const parcelService = {
       throw error;
     }
 
-    // Process data to include estimated delivery time
-    const processedData = (data || []).map((parcel: Parcel) => {
+    // Process data to include estimated delivery time and fetch sender/recipient info
+    const processedData = await Promise.all((data || []).map(async (parcel: Parcel) => {
       // Ensure parcel has a tracking code
       const trackingCode = parcel.tracking_code || parcel.id;
       
@@ -295,13 +295,31 @@ export const parcelService = {
         deliveryTime.setHours(deliveryTime.getHours() + 5);
         estimatedDelivery = `Delivery by ${deliveryTime.getHours()}:${String(deliveryTime.getMinutes()).padStart(2, '0')}`;
       }
+
+      // Fetch sender and recipient info
+      let senderInfo = null;
+      let recipientInfo = null;
+      
+      try {
+        senderInfo = await this.getSenderInfo(parcel.id);
+      } catch (senderError) {
+        console.warn(`Error fetching sender info for parcel ${parcel.id}:`, senderError);
+      }
+
+      try {
+        recipientInfo = await this.getRecipientInfo(parcel.id);
+      } catch (recipientError) {
+        console.warn(`Error fetching recipient info for parcel ${parcel.id}:`, recipientError);
+      }
       
       return {
         ...parcel,
         tracking_code: trackingCode,
-        estimated_delivery: estimatedDelivery
+        estimated_delivery: estimatedDelivery,
+        sender: senderInfo,
+        recipient: recipientInfo
       };
-    });
+    }));
 
     return processedData as Parcel[];
   },
@@ -317,11 +335,11 @@ export const parcelService = {
       medium: 180,
       large: 250,
     };
-    
+
     // Calculate fee based on distance (ETB per km)
     const distanceFee = distance * 10;
-    
-    return baseFees[packageSize] + distanceFee;
+
+    return baseFees[packageSize as keyof typeof baseFees ?? 'small'] + distanceFee;
   },
 
   /**
@@ -550,5 +568,53 @@ export const parcelService = {
       console.error('Error searching parcels:', error);
       return [];
     }
+  },
+
+  /**
+   * Get sender information for a parcel
+   */
+  async getSenderInfo(parcelId: string): Promise<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    full_name: string;
+    phone_number: string;
+    avatar_url: string;
+  }> {
+    const { data, error } = await supabase
+      .rpc('get_sender_info', {
+        parcel_id: parcelId
+      });
+
+    if (error) {
+      console.error('Error fetching sender info:', error);
+      throw error;
+    }
+
+    return data;
+  },
+
+  /**
+   * Get recipient information for a parcel
+   */
+  async getRecipientInfo(parcelId: string): Promise<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    full_name: string;
+    phone_number: string;
+    avatar_url: string;
+  }> {
+    const { data, error } = await supabase
+      .rpc('get_recipient_info', {
+        parcel_id: parcelId
+      });
+
+    if (error) {
+      console.error('Error fetching recipient info:', error);
+      throw error;
+    }
+
+    return data;
   },
 };

@@ -10,10 +10,26 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <PaperProvider theme={theme}>
         <AuthProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(modals)" options={{ presentation: 'modal' }} />
+          <Stack>
+            <Stack.Screen 
+              name="(tabs)" 
+              options={{ headerShown: false }} 
+            />
+            <Stack.Screen 
+              name="(auth)" 
+              options={{ headerShown: false }} 
+            />
+            <Stack.Screen 
+              name="(modals)" 
+              options={{ 
+                presentation: 'modal',
+                headerShown: true,
+                headerTintColor: '#ffffff',
+                headerStyle: {
+                  backgroundColor: '#1976D2',
+                },
+              }} 
+            />
           </Stack>
         </AuthProvider>
       </PaperProvider>
