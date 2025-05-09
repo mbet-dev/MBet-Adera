@@ -62,7 +62,7 @@ interface PartnerLocation {
 
 // Size descriptions for the tooltip
 const SIZE_DESCRIPTIONS = {
-  documents: 'Letters, documents up to A4 size',
+  documents: 'Letters, documents up to A5 size',
   small: 'Up to 5kg, max 30x20x15cm',
   medium: 'Up to 10kg, max 50x30x20cm',
   large: 'Up to 20kg, max 70x50x30cm'
@@ -295,7 +295,7 @@ export const EnhancedCreateOrderForm = () => {
           <Text style={styles.label}>Package Description <Text style={styles.required}>*</Text></Text>
           <TextInput
             style={[styles.textInput, errors.description && styles.inputError]}
-            placeholder="What are you sending? Please be specific."
+            placeholder="What are you sending? Put a name that can help you remember or use it in Search Key indexes.."
             value={packageDetails.description}
             onChangeText={(text) => setPackageDetails({...packageDetails, description: text})}
             multiline

@@ -699,9 +699,17 @@ export default function ParcelDetailsModal() {
           headerLeft: () => (
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => {
+                // Clear any pending state
+                setParcel(null);
+                setSender(null);
+                setRecipient(null);
+                setError(null);
+                // Navigate back
+                router.back();
+              }}
             >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Ionicons name="close" size={24} color="#fff" />
             </TouchableOpacity>
           ),
         }}

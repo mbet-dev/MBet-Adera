@@ -28,6 +28,7 @@ interface ParcelDetailsProps {
   onCancel?: () => void;
   onTrack?: () => void;
   onChat?: () => void;
+  onClose?: () => void;
 }
 
 const statusConfig = {
@@ -76,6 +77,7 @@ const ParcelDetails: React.FC<ParcelDetailsProps> = ({
   onCancel,
   onTrack,
   onChat,
+  onClose
 }) => {
   const status = statusConfig[parcel.status as ParcelStatus];
 
@@ -141,13 +143,16 @@ const ParcelDetails: React.FC<ParcelDetailsProps> = ({
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.trackingCode}>#{parcel.tracking_code}</Text>
-          <Text style={styles.date}>{formatDate(parcel.created_at)}</Text>
-        </View>
-        <View style={[styles.statusBadge, { backgroundColor: status.backgroundColor }]}>
-          <Ionicons name={status.icon as any} size={20} color={status.color} />
-          <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.title}>Parcel Details</Text>
+          {onClose && (
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={onClose}
+            >
+              <Ionicons name="close" size={24} color="#333" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -217,23 +222,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
   },
   header: {
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    marginBottom: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
   },
   trackingCode: {
     fontSize: 18,

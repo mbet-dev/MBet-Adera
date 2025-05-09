@@ -371,22 +371,39 @@ export const PartnerLocationSelect = ({ label, onSelect, selectedPartner, type =
                 animationType="slide"
                 transparent={true}
                 visible={modalVisible}
-                onRequestClose={() => setModalVisible(false)}
+                onRequestClose={() => {
+                    setModalVisible(false);
+                    // Clear any pending state after animation
+                    setTimeout(() => {
+                        setSelectedPartner(null);
+                    }, 300);
+                }}
             >
                 <View style={styles.modalContainer}>
-                    <View style={styles.modalContent}>
+                    <View style={[styles.modalContent, { maxHeight: '60%' }]}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>
                                 {type === 'pickup' ? 'Select Pickup Partner' : 'Select Delivery Partner'}
                             </Text>
-                            <TouchableOpacity onPress={() => setModalVisible(false)}>
+                            <TouchableOpacity 
+                                onPress={() => {
+                                    setModalVisible(false);
+                                    // Clear any pending state after animation
+                                    setTimeout(() => {
+                                        setSelectedPartner(null);
+                                    }, 300);
+                                }}
+                            >
                                 <Ionicons name="close" size={24} color="#333" />
                             </TouchableOpacity>
                         </View>
                         
-                        <View style={styles.modalMapContainer}>
-                            {renderModalMap()}
-                        </View>
+                        {/* Map with all partner locations */}
+                        {!loading && partners.length > 0 && (
+                            <View style={[styles.mapFullContainer, { height: 150 }]}>
+                                {renderModalMap()}
+                            </View>
+                        )}
                         
                         {loading ? (
                             <View style={styles.loadingContainer}>
@@ -399,7 +416,7 @@ export const PartnerLocationSelect = ({ label, onSelect, selectedPartner, type =
                                 <Text style={styles.emptyText}>No partner locations available</Text>
                             </View>
                         ) : (
-                            <ScrollView style={styles.partnerList}>
+                            <ScrollView style={[styles.partnerList, { maxHeight: 300 }]}>
                                 {partners.map(partner => (
                                     <TouchableOpacity
                                         key={partner.id}
@@ -659,5 +676,9 @@ const styles = StyleSheet.create({
         fontSize: 11,
         color: '#4CAF50',
         marginTop: 4,
+    },
+    mapFullContainer: {
+        position: 'relative',
+        backgroundColor: '#f0f0f0',
     },
 });

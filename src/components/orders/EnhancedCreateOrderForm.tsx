@@ -261,7 +261,7 @@ export const EnhancedCreateOrderForm = () => {
           <Text style={styles.label}>Package Description <Text style={styles.required}>*</Text></Text>
           <TextInput
             style={[styles.textInput, errors.description && styles.inputError]}
-            placeholder="What are you sending? Please be specific."
+            placeholder="Write a name or anything to help you index &/or that you may use it later as a Search Key"
             value={packageDetails.description}
             onChangeText={(text) => setPackageDetails({...packageDetails, description: text})}
             multiline
