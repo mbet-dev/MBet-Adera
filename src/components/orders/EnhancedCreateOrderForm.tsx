@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { router } from 'expo-router';
-import { parcelService } from '../../services/parcelService';
+import { parcelService } from '@/services/parcelService';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { MaterialIcons, FontAwesome5, MaterialCommunityIcons } from '@expo/vecto
 // @ts-ignore - Let TypeScript ignore the import error
 import { PartnerLocationSelect } from './index';
 import Colors from '../../../constants/Colors';
+import { ProhibitedItemsGuide } from './ProhibitedItemsGuide';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = Math.min(width - 40, 400);
@@ -69,6 +70,8 @@ export const EnhancedCreateOrderForm = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [showSizeInfo, setShowSizeInfo] = useState(false);
+  const [showProhibitedItems, setShowProhibitedItems] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Clear errors when fields are updated
   useEffect(() => {
@@ -186,7 +189,7 @@ export const EnhancedCreateOrderForm = () => {
         onPress={() => setPackageDetails({...packageDetails, size})}
       >
         <MaterialCommunityIcons 
-          name={icons[size]} 
+          name={icons[size] as any} 
           size={32} 
           color={isSelected ? '#FFFFFF' : '#4CAF50'} 
         />
@@ -225,6 +228,11 @@ export const EnhancedCreateOrderForm = () => {
     );
   };
 
+  const handleTermsAccept = () => {
+    setTermsAccepted(true);
+    setShowProhibitedItems(false);
+  };
+
   return (
     <View style={styles.container}>
       {/* Form header with illustration */}
@@ -236,11 +244,49 @@ export const EnhancedCreateOrderForm = () => {
             color="#4CAF50" 
           />
         </View>
-        <Text style={styles.title}>Create New Delivery</Text>
+        <Text style={styles.title}>Create New Delivery 111x</Text>
         <Text style={styles.subtitle}>
-          Fill in the details below to create a new delivery order
+          Fill in the details below to create a new delivery order after reading to our terms and conditions.*
         </Text>
       </View>
+
+      {/* Prohibited Items List Button */}
+      <TouchableOpacity
+        style={styles.prohibitedItemsButton}
+        onPress={() => setShowProhibitedItems(true)}
+      >
+        <View style={styles.buttonContent}>
+          <MaterialIcons name="warning" size={20} color="#FF9800" />
+          <Text style={styles.prohibitedItemsButtonText}>
+            View Prohibited Items List
+          </Text>
+        </View>
+        <MaterialIcons name="chevron-right" size={20} color="#FF9800" />
+      </TouchableOpacity>
+
+      {/* Terms & Conditions Button */}
+      <TouchableOpacity
+        style={styles.termsButton}
+        onPress={() => router.push('/(modals)/terms')}
+      >
+        <View style={styles.buttonContent}>
+          <MaterialIcons name="description" size={20} color="#4CAF50" />
+          <Text style={styles.termsButtonText}>
+            {termsAccepted ? 'Terms Accepted ✓' : 'Review Terms & Conditions'}
+          </Text>
+        </View>
+        <MaterialIcons name="chevron-right" size={20} color="#4CAF50" />
+      </TouchableOpacity>
+
+      {/* Terms Warning */}
+      {!termsAccepted && (
+        <View style={styles.termsWarning}>
+          <MaterialIcons name="warning" size={24} color="#FF9800" />
+          <Text style={styles.termsWarningText}>
+            Please review our prohibited items list and terms before creating a delivery
+          </Text>
+        </View>
+      )}
 
       {/* Global form error */}
       {errors.form && (
@@ -365,6 +411,12 @@ export const EnhancedCreateOrderForm = () => {
           </>
         )}
       </TouchableOpacity>
+
+      <ProhibitedItemsGuide
+        visible={showProhibitedItems}
+        onClose={() => setShowProhibitedItems(false)}
+        onAccept={handleTermsAccept}
+      />
     </View>
   );
 };
@@ -599,5 +651,54 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     marginRight: 8,
+  },
+  termsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#E8F5E9',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  termsButtonText: {
+    color: '#4CAF50',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  termsWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3E0',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  termsWarningText: {
+    color: '#FF9800',
+    fontSize: 14,
+    marginLeft: 8,
+    flex: 1,
+  },
+  prohibitedItemsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF3E0',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  prohibitedItemsButtonText: {
+    color: '#FF9800',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
   },
 }); 

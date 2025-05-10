@@ -30,6 +30,29 @@ export default function VerifyOTPScreen() {
           const parsedData = JSON.parse(data);
           setRegistrationData(parsedData);
           console.log('Loaded registration data:', parsedData);
+          
+          // Generate initial OTP code
+          const initialOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
+          const updatedData = {
+            ...parsedData,
+            otpCode: initialOtpCode,
+            timestamp: Date.now()
+          };
+          
+          await AsyncStorage.setItem('registrationData', JSON.stringify(updatedData));
+          setRegistrationData(updatedData);
+          
+          // Show OTP in development
+          if (__DEV__) {
+            if (Platform.OS === 'web') {
+              console.log('Initial OTP Code:', initialOtpCode);
+            } else {
+              Alert.alert(
+                "Initial OTP Code",
+                `Your verification code is: ${initialOtpCode}`
+              );
+            }
+          }
         } else {
           console.error('No registration data found');
           setError('Registration data not found. Please try registering again.');
@@ -184,6 +207,9 @@ export default function VerifyOTPScreen() {
 
       if (signUpError) {
         console.error('Signup error:', signUpError);
+        if (signUpError.message.includes('Email address is invalid')) {
+          throw new Error('Please use a valid email address from a supported domain');
+        }
         throw signUpError;
       }
 
@@ -193,36 +219,36 @@ export default function VerifyOTPScreen() {
 
       console.log('Created auth user:', authData.user);
 
-      try {
-        // Wait a short moment for the trigger to create the profile
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Update the profile
-        const { error: updateError } = await supabase
+      // Create profile manually if it doesn't exist
+      const { error: profileError } = await supabase
           .from('profiles')
-          .update({
-            phone_number: registrationData.phoneNumber,
+        .insert([
+          {
+            id: authData.user.id,
+            email: registrationData.email,
             first_name: registrationData.firstName,
             last_name: registrationData.lastName,
             full_name: registrationData.fullName,
-            role: 'customer'
-          })
-          .eq('id', authData.user.id);
+            phone_number: registrationData.phoneNumber,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+        ]);
 
-        if (updateError) {
-          console.error('Profile update error:', updateError);
-          throw new Error('Failed to update profile information');
+      if (profileError) {
+        console.error('Profile creation error:', profileError);
+        throw new Error('Failed to create user profile');
         }
 
-        // Verify the profile was updated
-        const { data: profile, error: checkError } = await supabase
+      // Verify the profile was created
+      const { data: profile, error: profileCheckError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', authData.user.id)
           .single();
 
-        if (checkError || !profile) {
-          console.error('Profile verification error:', checkError);
+      if (profileCheckError || !profile) {
+        console.error('Profile verification error:', profileCheckError);
           throw new Error('Failed to verify profile creation');
         }
 
@@ -239,11 +265,6 @@ export default function VerifyOTPScreen() {
           successMessage,
           [{ text: "OK", onPress: () => router.replace('/auth/login') }]
         );
-      } catch (error: any) {
-        console.error('Profile error:', error);
-        // Don't try to delete the auth user, just show the error
-        throw new Error('Failed to complete profile setup. Please try logging in and updating your profile.');
-      }
     } catch (error: any) {
       console.error('Verification error:', error);
       setError(error.message || 'An error occurred during verification');

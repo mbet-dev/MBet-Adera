@@ -14,7 +14,6 @@ export default function ProfileLayout() {
         headerTitleStyle: {
           fontWeight: '600',
         },
-        headerBackTitleVisible: false,
       }}
     >
       <Stack.Screen

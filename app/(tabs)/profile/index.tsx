@@ -17,6 +17,7 @@ import { supabase } from '../../../src/services/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebLayout } from '../../../src/components/layout/WebLayout';
 import Colors from '../../../constants/Colors';
+import { MaterialIcons } from '@expo/vector-icons';
 
 type UserProfile = {
   id: string;
@@ -207,6 +208,14 @@ export default function ProfileScreen() {
               thumbColor={locationServices ? '#fff' : '#f4f3f4'}
             />
           </View>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => router.push('/(modals)/terms')}
+          >
+            <MaterialIcons name="description" size={24} color="#4CAF50" />
+            <Text style={styles.menuItemText}>Terms & Conditions</Text>
+            <MaterialIcons name="chevron-right" size={24} color="#999999" />
+          </TouchableOpacity>
         </View>
       ),
     },
@@ -241,8 +250,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   webContainer: {
-    height: '100vh',
-    overflow: 'auto',
+    height: Platform.OS === 'web' ? '100%' : undefined,
+    overflow: Platform.OS === 'web' ? 'scroll' : undefined,
   },
   contentContainer: {
     flexGrow: 1,

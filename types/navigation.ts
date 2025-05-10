@@ -1,11 +1,25 @@
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { CompositeScreenProps } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type RootStackParamList = {
-  Auth: undefined;
-  Main: undefined;
-  Onboarding: undefined;
+  auth: NavigatorScreenParams<AuthStackParamList>;
+  tabs: NavigatorScreenParams<TabStackParamList>;
+  'track-map': undefined;
+  'create-delivery': undefined;
+  deposit: undefined;
+};
+
+export type AuthStackParamList = {
+  login: undefined;
+  register: undefined;
+};
+
+export type TabStackParamList = {
+  home: undefined;
+  orders: undefined;
+  profile: undefined;
 };
 
 export type MainTabParamList = {
@@ -15,14 +29,6 @@ export type MainTabParamList = {
   'Parcel Details': undefined;
   Chat: undefined;
   'My Account': undefined;
-};
-
-export type AuthStackParamList = {
-  Login: undefined;
-  Register: undefined;
-  'Forgot Password': undefined;
-  'Verify OTP': undefined;
-  'Reset Password': undefined;
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<
@@ -38,4 +44,10 @@ export type MainTabScreenProps<T extends keyof MainTabParamList> = CompositeScre
 export type AuthStackScreenProps<T extends keyof AuthStackParamList> = CompositeScreenProps<
   NativeStackScreenProps<AuthStackParamList, T>,
   RootStackScreenProps<keyof RootStackParamList>
->; 
+>;
+
+declare global {
+  namespace ReactNavigation {
+    interface RootParamList extends RootStackParamList {}
+  }
+} 

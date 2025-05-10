@@ -5,10 +5,37 @@
     "baseUrl": ".",
     "paths": {
       "@/*": [
-        "./src/*"
+        "./*"
       ],
-      "@/hooks/*": [
-        "./src/hooks/*"
+      "@components/*": [
+        "components/*"
+      ],
+      "@lib/*": [
+        "lib/*"
+      ],
+      "@utils/*": [
+        "utils/*"
+      ],
+      "@hooks/*": [
+        "hooks/*"
+      ],
+      "@context/*": [
+        "context/*"
+      ],
+      "@assets/*": [
+        "assets/*"
+      ],
+      "@constants/*": [
+        "constants/*"
+      ],
+      "@types/*": [
+        "types/*"
+      ],
+      "@services/*": [
+        "services/*"
+      ],
+      "@theme/*": [
+        "theme/*"
       ]
     },
     "esModuleInterop": true,
@@ -28,9 +55,7 @@
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx",
-    "types/**/*.d.ts",
-    "app/**/*"
+    "**/*.tsx"
   ],
   "exclude": [
     "node_modules",

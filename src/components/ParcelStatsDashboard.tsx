@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/services/supabase';
+import { supabase } from '../services/supabase';
 import { router } from 'expo-router';
 
 interface ParcelStats {

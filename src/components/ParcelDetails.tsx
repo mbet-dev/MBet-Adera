@@ -120,8 +120,7 @@ const ParcelDetails: React.FC<ParcelDetailsProps> = ({
         <View style={styles.personRow}>
           <Avatar
             size={40}
-            uri={person?.avatar_url}
-            fallback={person?.full_name?.[0] || '?'}
+            source={parcel?.sender?.logo_url ? { uri: parcel.sender.logo_url } : require('../../assets/images/avatar 9.jpg')}
           />
           <View style={styles.personInfo}>
             <Text style={styles.personName}>{person?.full_name || 'N/A'}</Text>

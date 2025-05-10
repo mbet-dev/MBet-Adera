@@ -1,11 +1,14 @@
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
-import React, { useEffect } from 'react';
+import { Slot, useRouter, useSegments } from 'expo-router';
 import { AuthProvider } from '@/context/AuthContext';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { theme } from '@/theme';
+import { theme } from '../theme';
 import * as SplashScreen from 'expo-splash-screen';
 import { LogBox } from 'react-native';
+import { SessionProvider, useSession } from '@components/SessionProvider';
+import { View } from 'react-native';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -16,23 +19,44 @@ LogBox.ignoreLogs([
   'ColorPropType will be removed',
 ]);
 
-export default function RootLayout() {
-  useEffect(() => {
-    // Hide splash screen after resources are loaded
-    SplashScreen.hideAsync().catch(console.error);
-  }, []);
+function RootLayoutNav() {
+  const { session, loading } = useSession();
+  const segments = useSegments();
+  const router = useRouter();
 
+  useEffect(() => {
+    if (loading) return;
+
+    const inAuthGroup = segments[0] === 'auth';
+
+    if (!session && !inAuthGroup) {
+      // Redirect to the sign-in page
+      router.replace('/auth/login');
+    } else if (session && inAuthGroup) {
+      // Redirect away from the sign-in page
+      router.replace('/tabs');
+    }
+  }, [session, loading, segments]);
+
+  useEffect(() => {
+    if (!loading) {
+      SplashScreen.hideAsync();
+    }
+  }, [loading]);
+
+  return <Slot />;
+}
+
+export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <PaperProvider theme={theme}>
-        <AuthProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(modals)" options={{ presentation: 'modal' }} />
-          </Stack>
-        </AuthProvider>
-      </PaperProvider>
-    </SafeAreaProvider>
+    <SessionProvider>
+      <SafeAreaProvider>
+        <PaperProvider theme={theme}>
+          <AuthProvider>
+            <RootLayoutNav />
+          </AuthProvider>
+        </PaperProvider>
+      </SafeAreaProvider>
+    </SessionProvider>
   );
 }

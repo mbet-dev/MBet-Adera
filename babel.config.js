@@ -1,18 +1,39 @@
-module.exports = function(api) {
+module.exports = function (api) {
   api.cache(true);
-  
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      // Add module resolver plugin to replace react-native-maps with an empty module on web
-      process.env.EXPO_TARGET === 'web' && [
+      [
         'module-resolver',
         {
+          root: ['./'],
+          extensions: ['.ios.js', '.android.js', '.js', '.ts', '.tsx', '.json'],
           alias: {
-            'react-native-maps': './src/components/empty-module.js',
+            '@': './',
+            '@components': './components',
+            '@lib': './lib',
+            '@utils': './utils',
+            '@hooks': './hooks',
+            '@context': './context',
+            '@assets': './assets',
+            '@constants': './constants',
+            '@types': './types',
+            '@services': './services',
+            '@theme': './theme'
           },
         },
       ],
-    ].filter(Boolean),
+      [
+        'module:react-native-dotenv',
+        {
+          moduleName: '@env',
+          path: '.env',
+          blacklist: null,
+          whitelist: null,
+          safe: true,
+          allowUndefined: false,
+        },
+      ],
+    ],
   };
 };

@@ -82,9 +82,6 @@ CREATE TABLE IF NOT EXISTS public.parcels (
     tracking_code TEXT UNIQUE,
     status TEXT DEFAULT 'pending',
     delivery_type TEXT CHECK (delivery_type IN ('standard', 'express', 'scheduled')),
-    package_size TEXT CHECK (package_size IN ('small', 'medium', 'large', 'document')),
-    weight DECIMAL(10,2),
-    dimensions JSONB,
     estimated_delivery_time TIMESTAMP WITH TIME ZONE,
     actual_delivery_time TIMESTAMP WITH TIME ZONE,
     pickup_contact TEXT,
@@ -173,9 +170,6 @@ CREATE INDEX IF NOT EXISTS idx_parcels_pickup_contact ON public.parcels(pickup_c
 
 -- Add index for dropoff_contact
 CREATE INDEX IF NOT EXISTS idx_parcels_dropoff_contact ON public.parcels(dropoff_contact);
-
--- Add index for package_size
-CREATE INDEX IF NOT EXISTS idx_parcels_package_size ON public.parcels(package_size);
 
 -- Create trigger function for new user registration
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -307,3 +301,4 @@ CREATE POLICY "Partners can update their own data"
     USING (auth.uid() IN (
         SELECT id FROM public.profiles WHERE role = 'partner'
     )); 
+    

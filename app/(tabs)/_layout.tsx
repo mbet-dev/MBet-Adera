@@ -58,86 +58,45 @@ const styles = StyleSheet.create({
 const isBrowser = typeof window !== 'undefined';
 
 export default function TabLayout() {
-  const [unreadCount, setUnreadCount] = useState<number>(0);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    // Skip if not in browser or no user
-    if (!isBrowser || !user) {
-      setIsLoading(false);
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
+    if (!user) {
+      router.replace('/auth/login');
       return;
     }
 
-    let mounted = true;
-
-    const setupRealtime = async () => {
+    const fetchUnreadCount = async () => {
       try {
-        setIsLoading(true);
-        setError(null);
-
-        // Get initial unread count
-        const { count, error: countError } = await supabase
-          .from('messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('recipient_id', user.id)
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('id')
+          .eq('user_id', user.id)
           .eq('read', false);
 
-        if (countError) throw countError;
-
-        if (mounted) {
-          setUnreadCount(count || 0);
-        }
-
-        // Only setup realtime subscription if not in web environment
-        if (Platform.OS !== 'web') {
-          const channel = supabase
-            .channel('unread_messages')
-            .on(
-              'postgres_changes',
-              {
-                event: '*',
-                schema: 'public',
-                table: 'messages',
-                filter: `recipient_id=eq.${user.id}`,
-              },
-              (payload) => {
-                if (mounted) {
-                  setUnreadCount((prev) => prev + 1);
-                }
-              }
-            )
-            .subscribe((status) => {
-              if (status !== 'SUBSCRIBED') {
-                console.warn('Realtime subscription status:', status);
-              }
-            });
-
-          return () => {
-            mounted = false;
-            supabase.removeChannel(channel);
-          };
-        }
-      } catch (err) {
-        console.error('Error in realtime setup:', err);
-        setError(err instanceof Error ? err.message : 'An error occurred');
+        if (error) throw error;
+        setUnreadCount(data?.length || 0);
+      } catch (error) {
+        console.error('Error fetching unread count:', error);
       } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
+        setLoading(false);
       }
     };
 
-    const cleanup = setupRealtime();
-    return () => {
-      mounted = false;
-      cleanup?.then(cleanupFn => cleanupFn?.());
-    };
-  }, [user, isBrowser]);
+    fetchUnreadCount();
+  }, [user, isMounted]);
 
-  if (isLoading) {
+  if (!isMounted || loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -145,25 +104,14 @@ export default function TabLayout() {
     );
   }
 
-  if (error) {
-    return (
-      <View style={styles.loadingContainer}>
-        <Text style={{ color: '#FF3B30' }}>Error: {error}</Text>
-      </View>
-    );
-  }
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: '#666666',
         tabBarStyle: styles.tabBar,
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: '#999999',
         tabBarLabelStyle: styles.tabBarLabel,
-        headerStyle: {
-          backgroundColor: '#FFFFFF',
-        },
-        headerTintColor: '#333333',
+        headerShown: false,
       }}
     >
       <Tabs.Screen
@@ -171,74 +119,44 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="home" size={size} color={color} />
+            <Ionicons name="home" size={size} color={color} />
           ),
         }}
       />
-
       <Tabs.Screen
         name="create-order"
         options={{
-          title: 'New Delivery',
+          title: 'Send',
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="truck-plus" size={size} color={color} />
+            <MaterialIcons name="add-circle" size={size} color={color} />
           ),
         }}
       />
-
       <Tabs.Screen
         name="orders"
         options={{
           title: 'Orders',
-          tabBarIcon: ({ color, size }) => <Ionicons name="cube-outline" size={size} color={color} />,
-          headerShown: false, // Hide the header as we have a custom one in the enhanced view
-        }}
-        listeners={{
-          tabPress: (e) => {
-            // Override the tab press to redirect to the enhanced orders screen
-            if (Platform.OS === 'web') {
-              e.preventDefault();
-              router.push('/(tabs)/orders/enhanced-orders' as any);
-            }
-          },
-        }}
-      />
-
-      <Tabs.Screen
-        name="orders/[id]"
-        options={{
-          title: 'Parcel Details',
           tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="list-alt" size={size} color={color} />
+            <MaterialIcons name="local-shipping" size={size} color={color} />
           ),
         }}
       />
-
       <Tabs.Screen
         name="chat"
         options={{
           title: 'Chat',
           tabBarIcon: ({ color, size }) => (
-            <View>
-              <Ionicons name="chatbubble-outline" size={size} color={color} />
-              {unreadCount > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </Text>
-                </View>
-              )}
-            </View>
+            <Ionicons name="chatbubbles" size={size} color={color} />
           ),
+          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
         }}
       />
-
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'My Account',
+          title: 'Profile',
           tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="account-circle" size={size} color={color} />
+            <Ionicons name="person" size={size} color={color} />
           ),
         }}
       />

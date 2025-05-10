@@ -12,6 +12,14 @@ export default function ModalsLayout() {
           backgroundColor: '#1976D2',
         },
       }}
-    />
+    >
+      <Stack.Screen
+        name="terms"
+        options={{
+          headerTitle: 'Terms & Conditions',
+          headerShown: true,
+        }}
+      />
+    </Stack>
   );
 } 

@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { Address, NewDeliveryFormData, Parcel, ParcelStatus, Transaction, TransactionStatus, PaymentMethod } from '@/types/parcel';
-import { generateTrackingCode } from '@/utils/helpers';
+import { generateTrackingCode } from '../utils/helpers';
 import { Alert } from 'react-native';
 
 // Function to handle address creation

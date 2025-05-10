@@ -39,7 +39,34 @@ export default function RegisterScreen() {
   // Validation functions
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    if (!emailRegex.test(email)) {
+      return false;
+    }
+    // Check for common email domains that are allowed
+    const allowedDomains = [
+      'gmail.com',
+      'yahoo.com',
+      'hotmail.com',
+      'outlook.com',
+      'mbetadera.com',
+      'icloud.com',
+      'protonmail.com',
+      'mail.com',
+      'aol.com',
+      'zoho.com',
+      'yandex.com',
+      'gmx.com',
+      'live.com',
+      'msn.com',
+      'me.com',
+      'mac.com',
+      'inbox.com',
+      'rocketmail.com',
+      'fastmail.com',
+      'tutanota.com'
+    ];
+    const domain = email.split('@')[1].toLowerCase();
+    return allowedDomains.includes(domain);
   };
   
   const validatePhoneNumber = (phone: string) => {
@@ -173,44 +200,30 @@ export default function RegisterScreen() {
         return;
       }
 
-      // Generate OTP
-      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      // Combine first and last name for full name
-      const fullName = `${firstName} ${lastName}`;
-      
-      // Store registration data in AsyncStorage
+      // Store registration data for OTP verification
       const registrationData = {
-        email,
-        password,
         firstName,
         lastName,
-        fullName,
+        email,
         phoneNumber: formattedPhone,
-        otpCode,
-        timestamp: Date.now()
+        password,
+        fullName: `${firstName} ${lastName}`.trim()
       };
 
       await AsyncStorage.setItem('registrationData', JSON.stringify(registrationData));
 
-      // In development, log the OTP
-      if (__DEV__) {
-        if (Platform.OS === 'web') {
-          console.log('Development OTP:', otpCode);
-        } else {
-          Alert.alert(
-            "Development OTP Code",
-            `Your verification code is: ${otpCode}`,
-            [{ text: "OK", onPress: () => router.push('/auth/verify-otp') }]
-          );
-        }
-      } else {
+      // Navigate to OTP verification
         router.push('/auth/verify-otp');
-      }
-
     } catch (error: any) {
       console.error('Registration error:', error);
+      if (error.message.includes('invalid email')) {
+        setErrors(prev => ({
+          ...prev,
+          email: 'Please use a valid email address from a supported domain (gmail.com, yahoo.com, hotmail.com, outlook.com, mbetadera.com)'
+        }));
+      } else {
       setErrors(prev => ({...prev, general: error.message || 'An error occurred during registration'}));
+      }
     } finally {
       setLoading(false);
     }
