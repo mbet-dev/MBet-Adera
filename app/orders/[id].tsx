@@ -13,23 +13,55 @@ import { ThemedView } from '../../components/ThemedView';
 import Colors from '../../constants/Colors';
 import { useAuth } from '../../src/context/AuthContext';
 
+interface DetailItemProps {
+  label: string;
+  value: string;
+  icon?: string;
+  highlightValue?: boolean;
+  highlightColor?: string;
+}
+
+const DetailItem: React.FC<DetailItemProps> = ({
+  label,
+  value,
+  icon,
+  highlightValue = false,
+  highlightColor = Colors.light.primary,
+}) => (
+  <View style={styles.detailItem}>
+    {icon && <Ionicons name={icon as any} size={18} color={Colors.light.textSecondary} style={styles.detailIcon} />}
+    <ThemedText style={styles.detailLabel}>{label}:</ThemedText>
+    <ThemedText
+      style={[
+        styles.detailValue,
+        highlightValue && {
+          color: highlightColor,
+          fontWeight: 'bold',
+        },
+      ]}
+    >
+      {value}
+    </ThemedText>
+  </View>
+);
+
 export default function OrderDetailsScreen() {
   const { id } = useLocalSearchParams();
   const [loading, setLoading] = useState(true);
   const [parcel, setParcel] = useState<Parcel | null>(null);
   const { user } = useAuth();
-  
+
   useEffect(() => {
     fetchParcelDetails();
   }, [id]);
-  
+
   const fetchParcelDetails = async () => {
     if (!id || !user) return;
-    
+
     setLoading(true);
     try {
       const result = await parcelService.getParcelById(id as string, user.id);
-      
+
       if (!result) {
         Alert.alert('Error', 'Failed to load parcel details', [{ text: 'OK', onPress: () => router.back() }]);
         console.log("Parcel not found, navigating back");
@@ -44,6 +76,7 @@ export default function OrderDetailsScreen() {
     }
     setLoading(false);
   };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return Colors.light.warning;
@@ -53,7 +86,7 @@ export default function OrderDetailsScreen() {
       default: return Colors.light.text;
     }
   };
-  
+
   const getStatusText = (status: string) => {
     switch (status) {
       case 'pending': return 'Pending';
@@ -63,15 +96,15 @@ export default function OrderDetailsScreen() {
       default: return status;
     }
   };
-  
+
   const copyTrackingCode = async () => {
     if (!parcel?.tracking_code) return;
-    
+
     await Clipboard.setStringAsync(parcel.tracking_code);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert('Copied', 'Tracking code copied to clipboard');
   };
-  
+
   if (loading) {
     return (
       <ThemedView style={styles.loadingContainer}>
@@ -80,7 +113,7 @@ export default function OrderDetailsScreen() {
       </ThemedView>
     );
   }
-  
+
   if (!parcel) {
     return (
       <ThemedView style={styles.errorContainer}>
@@ -89,14 +122,14 @@ export default function OrderDetailsScreen() {
       </ThemedView>
     );
   }
-  
+
   return (
     <>
-      <Stack.Screen 
-        options={{ 
+      <Stack.Screen
+        options={{
           title: `Parcel ${parcel.tracking_code}`,
-          headerBackTitle: 'Orders'
-        }} 
+          headerBackTitle: 'Orders',
+        }}
       />
       <ScrollView style={styles.container}>
         <ThemedView style={styles.card}>
@@ -108,7 +141,7 @@ export default function OrderDetailsScreen() {
               backgroundColor="transparent"
             />
           </View>
-          
+
           <View style={styles.trackingCodeContainer}>
             <ThemedText style={styles.trackingCodeLabel}>Tracking Code:</ThemedText>
             <Pressable onPress={copyTrackingCode} style={styles.trackingCode}>
@@ -116,16 +149,16 @@ export default function OrderDetailsScreen() {
               <Ionicons name="copy-outline" size={20} color={Colors.light.textSecondary} />
             </Pressable>
           </View>
-          
+
           <View style={styles.statusContainer}>
             <ThemedText style={styles.statusLabel}>Status:</ThemedText>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(parcel.status) }]}>
               <ThemedText style={styles.statusText}>{getStatusText(parcel.status)}</ThemedText>
             </View>
           </View>
-          
+
           <View style={styles.divider} />
-          
+
           <View style={styles.addressContainer}>
             <View style={styles.addressSection}>
               <Ionicons name="location" size={24} color={Colors.light.primary} />
@@ -135,11 +168,11 @@ export default function OrderDetailsScreen() {
                 <ThemedText style={styles.contactText}>{parcel.pickup_contact}</ThemedText>
               </View>
             </View>
-            
+
             <View style={styles.directionArrow}>
               <Ionicons name="arrow-down" size={24} color={Colors.light.textSecondary} />
             </View>
-            
+
             <View style={styles.addressSection}>
               <Ionicons name="flag" size={24} color={Colors.light.error} />
               <View style={styles.addressTextContainer}>
@@ -149,32 +182,32 @@ export default function OrderDetailsScreen() {
               </View>
             </View>
           </View>
-          
+
           <View style={styles.divider} />
-          
+
           <View style={styles.details}>
             <View style={styles.detailsHeader}>
               <Ionicons name="cube-outline" size={24} color={Colors.light.primary} />
               <ThemedText style={styles.sectionTitle}>Package Information</ThemedText>
             </View>
-            <DetailItem 
-              icon="cube" 
-              label="Package Size" 
+            <DetailItem
+              icon="cube"
+              label="Package Size"
               value={parcel.package_size ? parcel.package_size.charAt(0).toUpperCase() + parcel.package_size.slice(1) : ''}
             />
-            <DetailItem 
-              icon="create-outline" 
-              label="Description" 
-              value={parcel.package_description || 'No description'} 
+            <DetailItem
+              icon="create-outline"
+              label="Description"
+              value={parcel.package_description || 'No description'}
             />
-            <DetailItem 
-              icon="alert-circle-outline" 
-              label="Special Handling" 
-              value={parcel.is_fragile ? 'Fragile' : 'Standard'} 
+            <DetailItem
+              icon="alert-circle-outline"
+              label="Special Handling"
+              value={parcel.is_fragile ? 'Fragile' : 'Standard'}
               highlightValue={parcel.is_fragile}
               highlightColor={Colors.light.warning}
             />
-            
+
             {(parcel.estimated_price || parcel.distance) && (
               <>
                 <View style={styles.divider} />
@@ -183,40 +216,40 @@ export default function OrderDetailsScreen() {
                   <ThemedText style={styles.sectionTitle}>Delivery Information</ThemedText>
                 </View>
                 {parcel.estimated_price && (
-                  <DetailItem 
-                    icon="cash-outline" 
-                    label="Delivery Fee" 
-                    value={parcel.formatted_price || `ETB ${parcel.estimated_price.toFixed(2)}`} 
+                  <DetailItem
+                    icon="cash-outline"
+                    label="Delivery Fee"
+                    value={parcel.formatted_price || `ETB ${parcel.estimated_price?.toFixed(2)}`}
                   />
                 )}
                 {parcel.distance && (
-                  <DetailItem 
-                    icon="map-outline" 
-                    label="Delivery Distance" 
-                    value={parcel.formatted_distance || `${parcel.distance.toFixed(1)} km`} 
+                  <DetailItem
+                    icon="map-outline"
+                    label="Delivery Distance"
+                    value={parcel.formatted_distance || `${parcel.distance?.toFixed(1)} km`}
                   />
                 )}
               </>
             )}
-            
+
             <View style={styles.divider} />
             <View style={styles.detailsHeader}>
               <Ionicons name="time-outline" size={24} color={Colors.light.primary} />
               <ThemedText style={styles.sectionTitle}>Timestamps</ThemedText>
             </View>
-            <DetailItem 
-              icon="calendar-outline" 
-              label="Created" 
-              value={parcel.created_at ? new Date(parcel.created_at).toLocaleString() : ''} 
+            <DetailItem
+              icon="calendar-outline"
+              label="Created"
+              value={parcel.created_at ? new Date(parcel.created_at).toLocaleString() : ''}
             />
-            <DetailItem 
-              icon="time-outline" 
-              label="Last Updated" 
-              value={parcel.updated_at ? new Date(parcel.updated_at).toLocaleString() : ''} 
+            <DetailItem
+              icon="time-outline"
+              label="Last Updated"
+              value={parcel.updated_at ? new Date(parcel.updated_at).toLocaleString() : ''}
             />
           </View>
-          
-          <Pressable 
+
+          <Pressable
             style={styles.trackButton}
             onPress={() => router.push(`/track-map?id=${parcel.id}`)}
           >
@@ -228,36 +261,6 @@ export default function OrderDetailsScreen() {
     </>
   );
 }
-
-const DetailItem = ({ 
-  label, 
-  value, 
-  icon, 
-  highlightValue = false,
-  highlightColor = Colors.light.primary
-}: { 
-  label: string, 
-  value: string, 
-  icon?: string,
-  highlightValue?: boolean,
-  highlightColor?: string
-}) => (
-  <View style={styles.detailItem}>
-    {icon && <Ionicons name={icon as any} size={18} color={Colors.light.textSecondary} style={styles.detailIcon} />}
-    <ThemedText style={styles.detailLabel}>{label}:</ThemedText>
-    <ThemedText 
-      style={[
-        styles.detailValue, 
-        highlightValue && { 
-          color: highlightColor,
-          fontWeight: 'bold'
-        }
-      ]}
-    >
-      {value}
-    </ThemedText>
-  </View>
-);
 
 const styles = StyleSheet.create({
   container: {
