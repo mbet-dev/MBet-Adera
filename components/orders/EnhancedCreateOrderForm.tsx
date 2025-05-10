@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
 import { parcelService } from '../../services/parcelService';
 import {
@@ -12,21 +12,43 @@ import {
   Switch,
   Alert as RNAlert,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { MaterialIcons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 // @ts-ignore - Let TypeScript ignore the import error
 import { PartnerLocationSelect } from './index';
 import Colors from '../../constants/Colors';
+import { ProhibitedItemsGuide } from './ProhibitedItemsGuide';
+import { PackageSize, PaymentMethod, NewDeliveryFormData } from '../../types/parcel';
+
+// Size descriptions for the tooltip
+const SIZE_DESCRIPTIONS: Record<PackageSize, string> = {
+  document: 'Letters, documents up to A5 size',
+  small: 'Up to 5kg, max 30x20x15cm',
+  medium: 'Up to 10kg, max 50x30x20cm',
+  large: 'Up to 20kg, max 70x50x30cm'
+};
+
+// Icons for payment methods
+const PAYMENT_ICONS: Record<PaymentMethod, string> = {
+  wallet: 'wallet',
+  cash: 'money-bill-wave',
+  yenepay: 'credit-card',
+  telebirr: 'mobile-alt'
+};
+
+// Icons for package sizes
+const SIZE_ICONS: Record<PackageSize, keyof typeof MaterialCommunityIcons.glyphMap> = {
+  document: 'file-document-outline',
+  small: 'package-variant-closed',
+  medium: 'package-variant',
+  large: 'package'
+};
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = Math.min(width - 40, 400);
 
-type PackageSize = 'documents' | 'small' | 'medium' | 'large';
-type PaymentMethod = 'wallet' | 'cash' | 'yenepay' | 'telebirr';
-
-// Add a type for FontAwesome5 icons we're using
-// The actual type is very complex, so we'll make a simplified one for our use case
 type FA5IconName = 'wallet' | 'money-bill-wave' | 'credit-card' | 'mobile-alt';
 
 // Add a type for MaterialCommunityIcons
@@ -60,22 +82,6 @@ interface PartnerLocation {
   [key: string]: any;
 }
 
-// Size descriptions for the tooltip
-const SIZE_DESCRIPTIONS = {
-  documents: 'Letters, documents up to A5 size',
-  small: 'Up to 5kg, max 30x20x15cm',
-  medium: 'Up to 10kg, max 50x30x20cm',
-  large: 'Up to 20kg, max 70x50x30cm'
-};
-
-// Icons for payment methods with correct type
-const PAYMENT_ICONS: Record<PaymentMethod, FA5IconName> = {
-  wallet: 'wallet',
-  cash: 'money-bill-wave',
-  yenepay: 'credit-card',
-  telebirr: 'mobile-alt'
-};
-
 export const EnhancedCreateOrderForm = () => {
   const { user } = useAuth() as AuthContextType;
   const [packageDetails, setPackageDetails] = useState({
@@ -89,35 +95,12 @@ export const EnhancedCreateOrderForm = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [showSizeInfo, setShowSizeInfo] = useState(false);
+  const [showProhibitedItems, setShowProhibitedItems] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [isFormValid, setIsFormValid] = useState(false);
 
-  // Validate form without changing state during render
-  const checkFormValidity = () => {
-    return !!(
-      packageDetails.description.trim() &&
-      pickupLocation?.id &&
-      dropoffLocation?.id
-    );
-  };
-
-  // Update validation state when dependencies change
-  useEffect(() => {
-    setIsFormValid(checkFormValidity());
-    
-    // Clear errors when fields are updated
-    if (packageDetails.description) {
-      setErrors(prev => ({ ...prev, description: '' }));
-    }
-    if (pickupLocation) {
-      setErrors(prev => ({ ...prev, pickupLocation: '' }));
-    }
-    if (dropoffLocation) {
-      setErrors(prev => ({ ...prev, dropoffLocation: '' }));
-    }
-  }, [packageDetails.description, pickupLocation, dropoffLocation]);
-
-  // Full validation only when submitting
-  const validateForm = () => {
+  // Memoize the validation function to prevent unnecessary re-renders
+  const validateForm = useCallback(() => {
     const newErrors: Record<string, string> = {};
     let isValid = true;
 
@@ -136,19 +119,30 @@ export const EnhancedCreateOrderForm = () => {
       isValid = false;
     }
 
+    if (!termsAccepted) {
+      newErrors.terms = 'You must accept the terms and conditions';
+      isValid = false;
+    }
+
     setErrors(newErrors);
     return isValid;
-  };
+  }, [packageDetails.description, pickupLocation?.id, dropoffLocation?.id, termsAccepted]);
+
+  // Update form validity when dependencies change
+  useEffect(() => {
+    const isValid = validateForm();
+    setIsFormValid(isValid);
+  }, [validateForm]);
 
   const handleSubmit = async () => {
-    if (!validateForm() || !user || !pickupLocation || !dropoffLocation) {
+    if (!isFormValid || !user || !pickupLocation || !dropoffLocation) {
       return;
     }
 
     setLoading(true);
     try {
       // Create delivery form data
-      const deliveryFormData = {
+      const deliveryFormData: NewDeliveryFormData = {
         // Required by NewDeliveryFormData
         sender_id: user.id,
         packageSize: packageDetails.size,
@@ -169,7 +163,7 @@ export const EnhancedCreateOrderForm = () => {
         dropoffAddressId: dropoffLocation.address_id,
       };
 
-      const result = await parcelService.createDelivery(deliveryFormData, user.id);
+      const result = await parcelService.createOrder(deliveryFormData);
       if (!result) throw new Error('Failed to create delivery');
       
       RNAlert.alert(
@@ -187,6 +181,7 @@ export const EnhancedCreateOrderForm = () => {
               setPackageDetails({ description: '', size: 'medium', isFragile: false });
               setPickupLocation(null);
               setDropoffLocation(null);
+              setTermsAccepted(false);
             },
             style: 'cancel'
           },
@@ -204,12 +199,6 @@ export const EnhancedCreateOrderForm = () => {
 
   const renderSizeOption = (size: PackageSize) => {
     const isSelected = packageDetails.size === size;
-    const icons: Record<PackageSize, MCIconName> = {
-      documents: 'file-document-outline',
-      small: 'package-variant-closed',
-      medium: 'package-variant',
-      large: 'package'
-    };
 
     return (
       <TouchableOpacity
@@ -221,7 +210,7 @@ export const EnhancedCreateOrderForm = () => {
         onPress={() => setPackageDetails({...packageDetails, size})}
       >
         <MaterialCommunityIcons 
-          name={icons[size]} 
+          name={SIZE_ICONS[size]} 
           size={32} 
           color={isSelected ? '#FFFFFF' : '#4CAF50'} 
         />
@@ -284,6 +273,59 @@ export const EnhancedCreateOrderForm = () => {
         </View>
       )}
 
+      {/* Terms & Conditions Section */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <MaterialIcons name="description" size={20} color="#4CAF50" />
+          <Text style={styles.sectionTitle}>Terms & Conditions</Text>
+        </View>
+
+        <View style={styles.formGroup}>
+          <TouchableOpacity
+            style={styles.termsButton}
+            onPress={() => router.push('/(modals)/terms')}
+          >
+            <View style={styles.buttonContent}>
+              <MaterialIcons name="description" size={20} color="#4CAF50" />
+              <Text style={styles.termsButtonText}>
+                Review Terms & Conditions
+              </Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={20} color="#4CAF50" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.prohibitedItemsButton}
+            onPress={() => setShowProhibitedItems(true)}
+          >
+            <View style={styles.buttonContent}>
+              <MaterialIcons name="warning" size={20} color="#FF9800" />
+              <Text style={styles.prohibitedItemsButtonText}>
+                View Prohibited Items List
+              </Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={20} color="#FF9800" />
+          </TouchableOpacity>
+
+          <View style={styles.termsCheckbox}>
+            <TouchableOpacity
+              style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}
+              onPress={() => setTermsAccepted(!termsAccepted)}
+            >
+              {termsAccepted && (
+                <MaterialIcons name="check" size={20} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+            <Text style={styles.termsText}>
+              I have read and agree to the Terms & Conditions and Prohibited Items List
+            </Text>
+          </View>
+          {errors.terms && (
+            <Text style={styles.errorText}>{errors.terms}</Text>
+          )}
+        </View>
+      </View>
+
       {/* Section: Package Details */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -313,7 +355,7 @@ export const EnhancedCreateOrderForm = () => {
             </TouchableOpacity>
           </View>
           <View style={styles.sizeGridContainer}>
-            {['documents', 'small', 'medium', 'large'].map(size => renderSizeOption(size as PackageSize))}
+            {['document', 'small', 'medium', 'large'].map(size => renderSizeOption(size as PackageSize))}
           </View>
         </View>
 
@@ -415,6 +457,11 @@ export const EnhancedCreateOrderForm = () => {
           </>
         )}
       </TouchableOpacity>
+
+      <ProhibitedItemsGuide
+        visible={showProhibitedItems}
+        onClose={() => setShowProhibitedItems(false)}
+      />
     </View>
   );
 };
@@ -661,6 +708,64 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     marginRight: 8,
+  },
+  termsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F5F5F5',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  prohibitedItemsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF3F3',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  termsButtonText: {
+    marginLeft: 12,
+    color: '#4CAF50',
+    fontWeight: '500',
+    fontSize: 16,
+  },
+  prohibitedItemsButtonText: {
+    marginLeft: 12,
+    color: '#FF9800',
+    fontWeight: '500',
+    fontSize: 16,
+  },
+  termsCheckbox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#4CAF50',
+  },
+  termsText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#666666',
   },
 });
 
