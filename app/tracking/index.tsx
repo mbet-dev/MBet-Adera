@@ -16,11 +16,11 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useNavigation, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../src/services/supabase';
+import { supabase } from '../../src/services/supabase';
 // Use OpenStreetMap instead of MapView for consistency
-import { OpenStreetMap } from '../src/components/OpenStreetMap';
+import { OpenStreetMap } from '../../src/components/OpenStreetMap';
 import * as Location from 'expo-location';
-import { formatDistance } from '../src/utils/formatting';
+import { formatDistance } from '../../src/utils/formatting';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import QRCode from 'react-native-qrcode-svg';
@@ -412,7 +412,7 @@ const MapTrackingScreen = () => {
                   size={200}
                   backgroundColor="#FFFFFF"
                   color="#000000"
-                  logo={require('../assets/images/logo2.png')}
+                  logo={require('../../assets/images/logo2.png')}
                   logoSize={logoSize}
                   logoBackgroundColor="white"
                   logoBorderRadius={10}
@@ -424,7 +424,7 @@ const MapTrackingScreen = () => {
                 size={200}
                 backgroundColor="#FFFFFF"
                 color="#000000"
-                logo={require('../assets/images/logo2.png')}
+                logo={require('../../assets/images/logo2.png')}
                 logoSize={logoSize}
                 logoBackgroundColor="white"
                 logoBorderRadius={10}
