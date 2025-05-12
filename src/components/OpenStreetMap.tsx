@@ -51,7 +51,11 @@ if (Platform.OS !== 'web') {
   WebView = require('react-native-webview').default;
 }
 
-export function OpenStreetMap({
+// Export a forwardRef version of the OpenStreetMap component
+export const OpenStreetMap = React.forwardRef<
+  { centerOnLocation: (location: { latitude: number; longitude: number }) => void },
+  OpenStreetMapProps
+>(({
   markers,
   initialLocation,
   onMarkerPress,
@@ -60,7 +64,7 @@ export function OpenStreetMap({
   zoomLevel = 12,
   showLabels = false,
   showCurrentLocation = false,
-}: OpenStreetMapProps) {
+}, ref) => {
   const [currentLocation, setCurrentLocation] = useState<{latitude: number, longitude: number} | null>(null);
   
   // Get user's current location
@@ -90,6 +94,10 @@ export function OpenStreetMap({
     }
   };
 
+  // Create refs for native and web map implementations
+  const nativeMapRef = React.useRef<any>(null);
+  const webViewRef = React.useRef<any>(null);
+
   // Calculate delta based on zoom level (lower delta = higher zoom)
   const getRegionForZoomLevel = (location: typeof initialLocation, zoom: number) => {
     const latitudeDelta = 0.0922 / (zoom / 10);
@@ -102,9 +110,44 @@ export function OpenStreetMap({
     };
   };
 
+  // Center the map on a specific location
+  const centerOnLocation = (location: {latitude: number, longitude: number}) => {
+    if (Platform.OS !== 'web' && nativeMapRef.current) {
+      // Native platform - use the native map reference
+      const region = getRegionForZoomLevel(location, zoomLevel);
+      nativeMapRef.current.animateToRegion(region, 500);
+    } else if (Platform.OS === 'web' && webViewRef.current) {
+      // Web platform - use the WebView reference
+      webViewRef.current.injectJavaScript(`
+        if (typeof map !== 'undefined') {
+          map.setView([${location.latitude}, ${location.longitude}], ${zoomLevel});
+        }
+        true;
+      `);
+    }
+  };
+
+  // Expose methods via ref
+  React.useImperativeHandle(ref, () => ({
+    centerOnLocation
+  }));
+
+  // Initialize browser geolocation when component mounts
+  useEffect(() => {
+    if (Platform.OS === 'web' && webViewRef.current) {
+      webViewRef.current.injectJavaScript(`
+        if (typeof initBrowserGeolocation === 'function') {
+          initBrowserGeolocation();
+        }
+        true;
+      `);
+    }
+  }, []);
+
   // Platform-specific implementation
   if (Platform.OS !== 'web') {
     return <NativeMap 
+      ref={nativeMapRef}
       markers={markers} 
       initialLocation={initialLocation}
       currentLocation={currentLocation}
@@ -118,6 +161,7 @@ export function OpenStreetMap({
     />;
   } else {
     return <WebMap 
+      ref={webViewRef}
       markers={markers} 
       initialLocation={initialLocation}
       currentLocation={currentLocation}
@@ -129,25 +173,25 @@ export function OpenStreetMap({
       getCurrentLocation={getCurrentLocation}
     />;
   }
-}
+});
 
-// Native implementation
-function NativeMap({ 
-  markers, 
-  initialLocation, 
-  currentLocation, 
-  onMarkerPress, 
-  onMapPress,
-  showLabels,
-  zoomLevel,
-  showCurrentLocation,
-  style,
-  getCurrentLocation
-}: OpenStreetMapProps & { 
+// Native implementation - convert to forwardRef
+const NativeMap = React.forwardRef<any, OpenStreetMapProps & { 
   currentLocation: {latitude: number, longitude: number} | null;
   getCurrentLocation: () => Promise<void>;
-}) {
-  const mapRef = useRef<any>(null);
+}>((props, ref) => {
+  const { 
+    markers, 
+    initialLocation, 
+    currentLocation, 
+    onMarkerPress, 
+    onMapPress,
+    showLabels,
+    zoomLevel,
+    showCurrentLocation,
+    style,
+    getCurrentLocation
+  } = props;
 
   // Calculate delta based on zoom level (lower delta = higher zoom)
   const getRegionForZoomLevel = (location: typeof initialLocation, zoom: number) => {
@@ -167,9 +211,11 @@ function NativeMap({
 
   // Function to center the map on current location
   const centerOnCurrentLocation = () => {
-    if (currentLocation && mapRef.current) {
+    if (currentLocation && ref && typeof ref !== 'function') {
       const region = getRegionForZoomLevel(currentLocation, zoomLevel || 12);
-      mapRef.current.animateToRegion(region, 1000);
+      if (ref.current) {
+        ref.current.animateToRegion(region, 500);
+      }
     } else {
       getCurrentLocation();
     }
@@ -178,7 +224,7 @@ function NativeMap({
   return (
     <View style={[styles.container, style]}>
       <MapView
-        ref={mapRef}
+        ref={ref}
         style={styles.map}
         provider="google"
         initialRegion={region}
@@ -229,81 +275,88 @@ function NativeMap({
                   )}
                 </View>
                 
-                {/* Caption below the marker - always visible */}
-                <View style={styles.captionContainer}>
-                  <Text style={[
-                    styles.captionText,
-                    isSortingFacility ? styles.sortingFacilityCaption : null
-                  ]}>
-                    {isSortingFacility ? 'MBet-Adera Sorting Facility' : marker.title}
-                  </Text>
-                </View>
+                {/* Caption below the marker */}
+                {showLabels && (
+                  <View style={styles.captionContainer}>
+                    <Text style={[
+                      styles.captionText,
+                      isSortingFacility ? styles.sortingFacilityCaption : null
+                    ]}>
+                      {isSortingFacility ? 'MBet-Adera Sorting Facility' : marker.title}
+                    </Text>
+                  </View>
+                )}
               </View>
             </Marker>
           );
         })}
-
-        {/* Current location marker */}
+        
+        {/* Current location marker (blue dot) */}
         {currentLocation && (
           <Marker
-            key="current-location"
             coordinate={{
               latitude: currentLocation.latitude,
               longitude: currentLocation.longitude,
             }}
-            title="Your location"
+            title="Your Location"
           >
             <View style={styles.currentLocationMarker}>
-              <View style={styles.currentLocationPulse} />
               <View style={styles.currentLocationDot} />
             </View>
           </Marker>
         )}
       </MapView>
       
-      {/* Current location button */}
-      {showCurrentLocation && (
-        <TouchableOpacity 
-          style={styles.locationButton} 
-          onPress={centerOnCurrentLocation}
-        >
-          <View style={styles.locationButtonInner}>
-            <MaterialIcons name="my-location" size={24} color="#007AFF" />
-          </View>
-        </TouchableOpacity>
-      )}
+      {/* Map controls (recenter button) */}
+      <TouchableOpacity
+        style={styles.recenterButton}
+        onPress={centerOnCurrentLocation}
+      >
+        <MaterialIcons name="my-location" size={20} color="#4CAF50" />
+      </TouchableOpacity>
     </View>
   );
-}
+});
 
-// Web implementation
-function WebMap({ 
-  markers, 
-  initialLocation,
-  currentLocation,
-  onMarkerPress, 
-  onMapPress,
-  showLabels,
-  zoomLevel,
-  style,
-  getCurrentLocation
-}: OpenStreetMapProps & { 
+// Web implementation - convert to forwardRef
+const WebMap = React.forwardRef<any, OpenStreetMapProps & { 
   currentLocation: {latitude: number, longitude: number} | null;
   getCurrentLocation: () => Promise<void>;
-}) {
-  const webViewRef = useRef<any>(null);
+}>((props, ref) => {
+  const {
+    markers, 
+    initialLocation,
+    currentLocation,
+    onMarkerPress, 
+    onMapPress,
+    showLabels,
+    zoomLevel,
+    style,
+    getCurrentLocation
+  } = props;
   const [locationRequested, setLocationRequested] = useState(false);
   const [browserLocation, setBrowserLocation] = useState<{latitude: number, longitude: number} | null>(null);
   
+  // Transfer ref
+  React.useImperativeHandle(ref, () => ({
+    injectJavaScript: (script: string) => {
+      if (ref && typeof ref !== 'function' && ref.current) {
+        ref.current.injectJavaScript(script);
+      }
+    }
+  }));
+  
   // Initialize browser geolocation immediately
   useEffect(() => {
-    if (webViewRef.current) {
-      webViewRef.current.injectJavaScript(`
-        initBrowserGeolocation();
+    if (ref && typeof ref !== 'function' && ref.current) {
+      ref.current.injectJavaScript(`
+        if (typeof initBrowserGeolocation === 'function') {
+          initBrowserGeolocation();
+        }
         true;
       `);
     }
-  }, [webViewRef.current]);
+  }, []);
   
   // Build HTML for web-based map
   const getMapHTML = () => {
@@ -639,16 +692,20 @@ function WebMap({
   // Center map on user's location
   const centerOnCurrentLocation = () => {
     setLocationRequested(true);
-    webViewRef.current?.injectJavaScript(`
-      centerOnUserLocation();
-      true;
-    `);
+    if (ref && typeof ref !== 'function' && ref.current) {
+      ref.current.injectJavaScript(`
+        if (typeof centerOnUserLocation === 'function') {
+          centerOnUserLocation();
+        }
+        true;
+      `);
+    }
   };
 
   return (
     <View style={[styles.container, style]}>
       <WebView
-        ref={webViewRef}
+        ref={ref}
         originWhitelist={['*']}
         source={{ html: getMapHTML() }}
         style={styles.map}
@@ -676,7 +733,7 @@ function WebMap({
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -802,5 +859,24 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 11,
     fontWeight: 'bold',
+  },
+  recenterButton: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 }); 

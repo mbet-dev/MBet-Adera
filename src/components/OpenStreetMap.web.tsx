@@ -10,6 +10,8 @@ interface MarkerData {
   color: string;
   size?: number;
   icon?: string;
+  description?: string;
+  zIndex?: number;
 }
 
 export interface OpenStreetMapProps {
@@ -347,32 +349,75 @@ export function OpenStreetMap({
             console.log("Markers to render in Leaflet:", markers);
             
             markers.forEach(marker => {
-              const customIcon = L.divIcon({
-                className: 'custom-marker',
-                html: \`<div style="background-color: \${marker.color}; width: \${marker.size || 30}px; height: \${marker.size || 30}px; display: flex; justify-content: center; align-items: center;"><span>\${marker.icon ? marker.icon : ''}</span></div>\`,
-                iconSize: [marker.size || 30, marker.size || 30]
-              });
-
-              const leafletMarker = L.marker([marker.latitude, marker.longitude], {
-                title: marker.title,
-                icon: customIcon
-              });
-
-              if (${showLabels}) {
-                leafletMarker.bindTooltip(marker.title, {
-                  permanent: true, 
-                  direction: 'top'
-                });
+              // Default size if not specified
+              const size = marker.size || 30;
+              
+              // Get icon based on marker type
+              let iconHTML = '';
+              
+              // Handle different icon types (support for MaterialIcons)
+              if (marker.icon === 'local-shipping') {
+                // Truck icon for shipping/facility
+                iconHTML = \`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="\${size*0.6}" height="\${size*0.6}" fill="white">
+                  <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+                </svg>\`;
+              } else if (marker.icon === 'add-location') {
+                // Pickup point icon
+                iconHTML = \`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="\${size*0.6}" height="\${size*0.6}" fill="white">
+                  <path d="M12 2C8.14 2 5 5.14 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.86-3.14-7-7-7zm4 8h-3v3h-2v-3H8V8h3V5h2v3h3v2z"/>
+                </svg>\`;
+              } else if (marker.icon === 'flag') {
+                // Dropoff point icon
+                iconHTML = \`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="\${size*0.6}" height="\${size*0.6}" fill="white">
+                  <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"/>
+                </svg>\`;
+              } else if (marker.icon === 'store') {
+                // Both pickup and dropoff point icon
+                iconHTML = \`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="\${size*0.6}" height="\${size*0.6}" fill="white">
+                  <path d="M20 4H4v2h16V4zm1 10v-2l-1-5H4l-1 5v2h1v6h10v-6h4v6h2v-6h1zm-9 4H6v-4h6v4z"/>
+                </svg>\`;
+              } else {
+                // Default to showing the title text
+                iconHTML = marker.title;
               }
-
-              leafletMarker.on('click', () => {
+              
+              // Create a custom div icon for the marker
+              const markerIcon = L.divIcon({
+                className: 'custom-marker',
+                html: \`<div style="
+                  width: \${size}px; 
+                  height: \${size}px; 
+                  background-color: \${marker.color}; 
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  font-size: \${size/2}px;
+                  ">\${iconHTML}</div>\`,
+                iconSize: [size, size]
+              });
+              
+              // Create the marker with the custom icon
+              const leafletMarker = L.marker(
+                [marker.latitude, marker.longitude], 
+                { 
+                  icon: markerIcon,
+                  title: marker.description || marker.title,
+                  zIndexOffset: marker.zIndex || 0
+                }
+              ).addTo(map);
+              
+              // Add a popup with the description if available
+              if (marker.description) {
+                leafletMarker.bindPopup(marker.description);
+              }
+              
+              // Add click handler to send message to React Native
+              leafletMarker.on('click', function() {
                 window.parent.postMessage(JSON.stringify({
-                  type: 'markerClick',
+                  type: 'markerPress',
                   marker: marker
                 }), '*');
               });
-
-              leafletMarker.addTo(map);
             });
 
             map.on('click', function(e) {
@@ -405,7 +450,7 @@ export function OpenStreetMap({
           ? JSON.parse(event.data) 
           : event.data;
 
-        if (data.type === 'markerClick' && onMarkerPress) {
+        if (data.type === 'markerPress' && onMarkerPress) {
           onMarkerPress(data.marker);
         } else if (data.type === 'mapClick' && onMapPress) {
           onMapPress(data.location);
