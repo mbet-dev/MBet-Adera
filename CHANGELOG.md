@@ -1,6 +1,6 @@
 # Changelog
 
-## v4.1.6 - User Switching Fix
+## v4.2.0 - New Stable Version (Authentication Overhaul)
 
 ### Authentication Improvements:
 - Fixed critical issue with switching between different user accounts
@@ -9,6 +9,8 @@
 - Added cascade of navigation methods to ensure UI updates properly
 - Reduced navigation timeouts for faster user experience
 - Added robust handling of session conflicts between different users
+- Eliminated automatic session timeout completely, allowing users to stay signed in permanently
+- Modified session management to only log users out when they explicitly click "Log Out"
 
 ## v4.1.5 - Authentication Navigation Improvements
 
@@ -23,8 +25,6 @@
 ## v4.1.4 - Session Duration Improvements
 
 ### Authentication Enhancement:
-- Eliminated automatic session timeout completely, allowing users to stay signed in permanently
-- Modified session management to only log users out when they explicitly click "Log Out"
 - Maintained token refresh functionality to handle server-side session refresh
 - Reduced the interval for session activity monitoring
 - Simplified the session state management
@@ -33,7 +33,6 @@
 ## v4.1.3 - New Stable Version (Auth Improvements)
 
 ### Authentication Flow Enhancements:
-- Fixed login redirection issues to Home screen after successful authentication
 - Enhanced AuthContext navigation logic with multiple fallback mechanisms
 - Improved sign-out functionality with proper session cleanup
 - Added session verification and recovery mechanisms
