@@ -9,6 +9,9 @@ export interface Address {
   longitude?: number;
 }
 
+// Nullable address for database responses that may return null
+export type NullableAddress = Address | null;
+
 export interface Parcel {
   id: string;
   created_at: string;
@@ -105,10 +108,48 @@ export interface Partner {
 
 export interface Profile {
   id: string;
+  user_id?: string;
   full_name?: string;
   phone_number?: string;
   avatar_url?: string;
   email?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+// Interface for the DB response types when they include nullable addresses
+export interface DatabaseParcel {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  sender_id: string;
+  receiver_id: string;
+  tracking_code: string;
+  status: ParcelStatus;
+  pickup_address_id: string;
+  dropoff_address_id: string;
+  pickup_address: NullableAddress;
+  dropoff_address: NullableAddress;
+  pickup_contact?: string;
+  dropoff_contact?: string;
+  package_size: PackageSize;
+  package_description?: string;
+  is_fragile: boolean;
+  // Additional fields for delivery details (same as Parcel)
+  [key: string]: any;
+}
+
+// ParcelService interface for type safety across the application
+export interface ParcelService {
+  getParcels(userId: string): Promise<DatabaseParcel[]>;
+  getParcelById(parcelId: string, userId: string): Promise<Parcel | null>;
+  createDelivery(formData: NewDeliveryFormData, userId: string): Promise<Parcel | null>;
+  createOrder(formData: NewDeliveryFormData): Promise<Parcel | null>;
+  updateParcelStatus(parcelId: string, status: ParcelStatus): Promise<Parcel | null>;
+  cancelParcel(parcelId: string, userId: string, reason?: string): Promise<boolean>;
+  getActiveDeliveries(userId: string): Promise<DatabaseParcel[]>;
+  getPaginatedParcels(userId: string, options?: any): Promise<{ parcels: DatabaseParcel[], totalCount: number }>;
+  getParcelStatistics(userId: string): Promise<{ active: number; delivered: number; cancelled: number; total: number; }>;
+  searchParcels(userId: string, query: string): Promise<DatabaseParcel[]>;
+  calculateDeliveryFee(packageSize: PackageSize, distance?: number): number;
 }

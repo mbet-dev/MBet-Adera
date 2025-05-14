@@ -19,7 +19,8 @@ import {
   PanResponder,
   LayoutAnimation,
   UIManager,
-  Easing
+  Easing,
+  Image
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Parcel } from '../../types';
@@ -29,6 +30,7 @@ import * as Location from 'expo-location';
 import { MaterialIcons, Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Get screen dimensions for responsive design
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -88,6 +90,8 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [userName, setUserName] = useState<string>('');
+  const [userId, setUserId] = useState<string | null>(null);
   const mapHeightAnimation = useState(new Animated.Value(SCREEN_HEIGHT * 0.4))[0];
   const deliveriesOpacityAnimation = useState(new Animated.Value(1))[0];
   const mapRef = useRef(null);
@@ -101,6 +105,10 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const modalContentHeight = useRef(0);
   const startDragY = useRef(0);
+  
+  // Add a new state for delivery loading separate from overall loading
+  const [isDeliveriesLoading, setIsDeliveriesLoading] = useState(false);
+  const [deliveriesError, setDeliveriesError] = useState<string | null>(null);
   
   // Listen for changes to the modal position
   useEffect(() => {
@@ -245,12 +253,19 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
     }).start();
   };
   
-  // Refresh control handler
+  // Update the onRefresh function to use the new loading states
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.all([fetchPartnerLocations(), fetchActiveDeliveries()]);
-    setIsRefreshing(false);
-  }, []);
+    setDeliveriesError(null);
+    try {
+      await Promise.all([fetchPartnerLocations(), fetchActiveDeliveries()]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      setDeliveriesError('Failed to refresh. Please try again.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [userId]);
 
   // Focus effect to refresh data when screen comes into focus
   useFocusEffect(
@@ -260,16 +275,87 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
     }, [onRefresh])
   );
 
-  // Initialize data on component mount
+  // Initialize data on component mount with better error handling
   useEffect(() => {
     const initializeData = async () => {
       setIsLoading(true);
-      await requestLocationPermission();
-      await Promise.all([fetchPartnerLocations(), fetchActiveDeliveries()]);
-      setIsLoading(false);
+      try {
+        await requestLocationPermission();
+        await Promise.all([fetchPartnerLocations(), fetchActiveDeliveries()]);
+      } catch (error) {
+        console.error('Error initializing data:', error);
+      } finally {
+        setIsLoading(false);
+      }
     };
     
     initializeData();
+  }, []);
+
+  // Fetch user data at component mount
+  useEffect(() => {
+    const getUserData = async () => {
+      try {
+        // First check AsyncStorage since it's more reliable across app restarts
+        const hasActiveSession = await AsyncStorage.getItem('hasActiveSession');
+        const storedUserJson = await AsyncStorage.getItem('mbet.user');
+        
+        // If we have stored user data, use it first
+        if (hasActiveSession === 'true' && storedUserJson) {
+          try {
+            const storedUser = JSON.parse(storedUserJson);
+            console.log('Found stored user data:', storedUser.id);
+            
+            if (storedUser.id) {
+              setUserId(storedUser.id);
+            }
+            
+            if (storedUser.full_name) {
+              setUserName(storedUser.full_name);
+            } else {
+              // Fallback to email or username
+              setUserName(storedUser.email?.split('@')[0] || 'User');
+            }
+          } catch (parseError) {
+            console.error('Error parsing stored user data:', parseError);
+          }
+        }
+        
+        // Then try to get user from Supabase Auth to ensure we have the latest data
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (user) {
+            console.log('Found authenticated user:', user.id);
+            setUserId(user.id);
+            
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', user.id)
+              .single();
+              
+            if (profileData && profileData.full_name) {
+              setUserName(profileData.full_name);
+            } else if (user.user_metadata?.full_name) {
+              setUserName(user.user_metadata.full_name);
+            }
+          } else if (!storedUserJson) {
+            // Only reset to default if we didn't find stored user data
+            setUserName('User');
+            setUserId(null);
+          }
+        } catch (authError) {
+          console.error('Supabase auth error:', authError);
+          // Keep the data from AsyncStorage if auth fails
+        }
+      } catch (error) {
+        console.error('Error in getUserData:', error);
+        setUserName('User');
+      }
+    };
+    
+    getUserData();
   }, []);
 
   // Request location permission and center map
@@ -322,33 +408,62 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
     return null;
   };
 
-  // Fetch active deliveries
+  // Fetch active deliveries for the current user
   const fetchActiveDeliveries = async () => {
     try {
-      // Try to fetch from parcels_with_addresses view first
-      let { data: deliveries, error } = await supabase
-        .from('parcels_with_addresses')
-        .select('*')
-        .in('status', ['pending', 'accepted', 'picked_up', 'in_transit']);
+      // Get the current authenticated user
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        console.log('No authenticated user found');
+        setActiveDeliveries([]);
+        setDeliveriesError("Please sign in to view your deliveries");
+        return;
+      }
 
-      // If the view doesn't exist, fall back to regular parcels table
-      if (error && error.code === '42P01') {
-        // Fallback to the parcels table
-        const { data: fallbackDeliveries, error: fallbackError } = await supabase
-          .from('parcels')
-          .select('*')
-          .in('status', ['pending', 'accepted', 'picked_up', 'in_transit']);
-        
-        if (fallbackError) throw fallbackError;
-        deliveries = fallbackDeliveries;
-      } else if (error) {
-        throw error;
+      setIsDeliveriesLoading(true);
+      setDeliveriesError(null);
+
+      console.log('Fetching deliveries for user ID:', user.id);
+      
+      // Fetch deliveries for the user from the 'parcels' table only
+      const { data: deliveries, error } = await supabase
+        .from('parcels')
+        .select('*')
+        .in('status', ['pending', 'accepted', 'picked_up', 'in_transit'])
+        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
+
+      if (error) {
+        console.error('Error loading deliveries:', JSON.stringify(error));
+        setActiveDeliveries([]);
+        setDeliveriesError(`Error loading deliveries: ${error.message || 'Unknown error'}`);
+        setIsDeliveriesLoading(false);
+        return;
       }
       
-      setActiveDeliveries(deliveries || []);
+      if (!deliveries || deliveries.length === 0) {
+        console.log('No deliveries found for user:', user.id);
+        setActiveDeliveries([]);
+        setDeliveriesError('No active deliveries found');
+        setIsDeliveriesLoading(false);
+        return;
+      }
+      
+      // Sort deliveries by created_at or updated_at (most recent first)
+      const sortedDeliveries = deliveries.sort((a, b) => {
+        const dateA = new Date(a.updated_at || a.updatedAt || a.created_at || a.createdAt);
+        const dateB = new Date(b.updated_at || b.updatedAt || b.created_at || b.createdAt);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      setActiveDeliveries(sortedDeliveries);
+      setDeliveriesError(null);
+      setIsDeliveriesLoading(false);
     } catch (error) {
-      // Only log essential errors - avoid detailed logs in production
-      console.error('Error fetching deliveries');
+      console.error('Error fetching deliveries:', error);
+      setActiveDeliveries([]);
+      setDeliveriesError("Failed to load deliveries. Please try again.");
+      setIsDeliveriesLoading(false);
     }
   };
 
@@ -639,14 +754,20 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
       <View style={styles.header}>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>MBet-Adera</Text>
-          <Text style={styles.headerSubtitle}>Delivery System</Text>
+          <Text style={styles.headerSubtitle}>Parcel Delivery Tracking System</Text>
         </View>
         
         <TouchableOpacity 
           style={styles.profileButton}
           onPress={navigateToProfile}
         >
-          <MaterialIcons name="account-circle" size={32} color="#4CAF50" />
+          <View style={styles.profileContainer}>
+            <Image 
+              source={require('../../../assets/images/avatar 9.jpg')}
+              style={styles.profileAvatar}
+            />
+            <Text style={styles.profileName}>{userName}</Text>
+          </View>
         </TouchableOpacity>
       </View>
       
@@ -721,9 +842,31 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
         >
           {activeDeliveries.length === 0 ? (
             <View style={styles.emptyStateContainer}>
-              <MaterialIcons name="inventory" size={80} color="#CCCCCC" />
-              <Text style={styles.emptyText}>No active deliveries</Text>
-              <Text style={styles.emptySubtext}>Create a new delivery to get started</Text>
+              {isDeliveriesLoading ? (
+                <>
+                  <ActivityIndicator size="large" color="#4CAF50" style={{ marginBottom: 20 }} />
+                  <Text style={styles.emptyText}>Loading your deliveries...</Text>
+                </>
+              ) : deliveriesError ? (
+                <>
+                  <MaterialIcons name="error-outline" size={80} color="#F44336" />
+                  <Text style={styles.emptyText}>{deliveriesError}</Text>
+                  <TouchableOpacity 
+                    style={styles.retryButton}
+                    onPress={() => fetchActiveDeliveries()}
+                  >
+                    <Text style={styles.retryButtonText}>Retry</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <MaterialIcons name="inventory" size={80} color="#CCCCCC" />
+                  <Text style={styles.emptyText}>No active deliveries</Text>
+                  <Text style={styles.emptySubtext}>
+                    {userId ? 'Create a new delivery to get started' : 'Sign in to view your deliveries'}
+                  </Text>
+                </>
+              )}
             </View>
           ) : (
             activeDeliveries.map((delivery) => (
@@ -761,6 +904,24 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
                       {delivery.package_description}
                     </Text>
                   )}
+                  
+                  <View style={styles.userRoleContainer}>
+                    <Text style={styles.userRoleText}>
+                      {(() => {
+                        try {
+                          // Check both camelCase and snake_case properties
+                          const isSender = 
+                            (delivery.sender_id && delivery.sender_id === userId) || 
+                            (delivery.senderId && delivery.senderId === userId);
+                          
+                          return isSender ? 'You are the sender' : 'You are the recipient';
+                        } catch (e) {
+                          // Fallback in case of any errors
+                          return 'Your delivery';
+                        }
+                      })()}
+                    </Text>
+                  </View>
                   
                   {delivery.estimated_price && (
                     <Text style={styles.priceText}>
@@ -1147,6 +1308,24 @@ const styles = StyleSheet.create({
   },
   profileButton: {
     padding: 5,
+  },
+  profileContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  profileName: {
+    fontSize: 12,
+    marginTop: 4,
+    color: '#666',
+    textAlign: 'center',
+    maxWidth: 80,
   },
   mapContainer: {
     width: '100%',
@@ -1743,6 +1922,30 @@ const styles = StyleSheet.create({
   },
   closedDot: {
     backgroundColor: '#F44336',
+  },
+  userRoleContainer: {
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  userRoleText: {
+    fontSize: 12,
+    color: '#1976D2',
+    fontWeight: '500',
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#4CAF50',
+    borderRadius: 20,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
   },
 });
 

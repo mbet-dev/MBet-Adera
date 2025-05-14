@@ -37,24 +37,6 @@ export default function LoginScreen() {
     // Initialize session manager
     sessionManager.initialize();
     
-    // Set up session timeout warning
-    sessionManager.setWarningCallback(() => {
-      Alert.alert(
-        'Session Expiring',
-        'Your session will expire soon. Would you like to stay logged in?',
-        [
-          {
-            text: 'Stay Logged In',
-            onPress: () => sessionManager.resetSession()
-          },
-          {
-            text: 'Log Out',
-            onPress: () => router.replace('/auth/login')
-          }
-        ]
-      );
-    });
-
     // Check remaining login attempts
     checkRemainingAttempts();
 
@@ -77,6 +59,18 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       setError('');
+
+      // Clear ALL previous session data first to prevent conflicts between users
+      await Promise.all([
+        AsyncStorage.removeItem('HAS_ACTIVE_SESSION'),
+        AsyncStorage.removeItem('AUTH_REDIRECT_HOME'),
+        AsyncStorage.removeItem('NAVIGATION_IN_PROGRESS'),
+        AsyncStorage.removeItem('auth_session_active'),
+        AsyncStorage.removeItem('supabase.auth.token'),
+        AsyncStorage.removeItem('sb-jaqwviuxhxsxypmffece-auth-token'),
+        AsyncStorage.removeItem('session_state')
+      ]);
+      debugLog('Cleared all previous session data');
 
       // Validate input
       const validationResult = validationService.validateObject(
@@ -121,18 +115,84 @@ export default function LoginScreen() {
       await sessionManager.resetSession();
       debugLog('Session manager reset complete');
 
-      // Store session indicator
+      // Store session indicator with force flag to ensure navigation happens
       try {
         await AsyncStorage.setItem('HAS_ACTIVE_SESSION', 'true');
-        debugLog('Session flag stored in AsyncStorage');
+        await AsyncStorage.setItem('AUTH_REDIRECT_HOME', 'true');
+        await AsyncStorage.setItem('FORCE_NAVIGATION', 'true'); // Add this force flag
+        await AsyncStorage.setItem('NAVIGATION_IN_PROGRESS', 'false');
+        debugLog('Session flags stored in AsyncStorage');
       } catch (storageError) {
-        console.error('Failed to store session flag:', storageError);
+        console.error('Failed to store session flags:', storageError);
         // Continue without throwing, as this is not critical
+      }
+
+      // Trigger a manual refresh for the AuthContext
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          debugLog('Successfully retrieved session after login');
+        }
+      } catch (refreshError) {
+        debugLog('Error refreshing session:', refreshError);
       }
 
       // Let AuthContext handle navigation instead of navigating directly
       // This avoids navigation conflicts between login screen and AuthContext
       debugLog('Login successful - AuthContext will handle navigation');
+      
+      // Always force navigation with more aggressive fallbacks
+      setTimeout(async () => {
+        try {
+          // Always attempt navigation regardless of current screen
+          debugLog('Executing forced navigation to home');
+          
+          // Direct replacement attempt
+          try {
+            router.replace('/(tabs)');
+            debugLog('Primary navigation successful');
+          } catch (replaceError) {
+            debugLog('Replace navigation failed, trying alternative', replaceError);
+            
+            // Complex cascade of fallbacks for different navigation issues
+            setTimeout(() => {
+              try {
+                router.navigate('/(tabs)');
+                debugLog('Navigate fallback successful');
+              } catch (navError) {
+                debugLog('Navigate failed, trying specific tab', navError);
+                
+                setTimeout(() => {
+                  try {
+                    // Try specific tab page
+                    router.replace('/(tabs)/home');
+                    debugLog('Specific tab navigation successful');
+                  } catch (specificError) {
+                    // Last resort - reset and push
+                    debugLog('Specific tab failed, trying final method', specificError);
+                    
+                    setTimeout(() => {
+                      try {
+                        // Clear any navigation flags that might be causing issues
+                        AsyncStorage.setItem('NAVIGATION_IN_PROGRESS', 'false')
+                          .catch(e => debugLog('Error clearing navigation flag', e));
+                        
+                        // Use the most basic navigation method
+                        router.push('/(tabs)/home');
+                        debugLog('Final navigation attempt executed');
+                      } catch (finalError) {
+                        debugLog('All navigation attempts failed', finalError);
+                      }
+                    }, 300);
+                  }
+                }, 300);
+              }
+            }, 500);
+          }
+        } catch (navError) {
+          debugLog('Navigation error in fallback handler', navError);
+        }
+      }, 1500); // Reduced timeout for faster response
       
       // No direct navigation here - AuthContext will handle it via auth state change
     } catch (error) {

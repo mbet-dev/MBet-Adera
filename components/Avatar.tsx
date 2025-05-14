@@ -1,20 +1,24 @@
 import React from 'react';
-import { View, StyleSheet, Image } from 'react-native';
+import { View, StyleSheet, Image, ImageSourcePropType, StyleProp, ViewStyle, ImageStyle } from 'react-native';
 import { Text } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
 
-interface AvatarProps {
+export interface AvatarProps {
   size?: number;
   imageUrl?: string;
   name?: string;
   color?: string;
+  source?: ImageSourcePropType;
+  style?: StyleProp<ViewStyle> | StyleProp<ImageStyle>;
 }
 
 export const Avatar: React.FC<AvatarProps> = ({
   size = 40,
   imageUrl,
   name,
-  color = '#4CAF50'
+  color = '#4CAF50',
+  source,
+  style
 }) => {
   const getInitials = (name: string) => {
     return name
@@ -25,10 +29,13 @@ export const Avatar: React.FC<AvatarProps> = ({
       .slice(0, 2);
   };
 
-  if (imageUrl) {
+  // Support both source prop and imageUrl prop
+  const imageSource = source || (imageUrl ? { uri: imageUrl } : undefined);
+
+  if (imageSource) {
     return (
       <Image
-        source={{ uri: imageUrl }}
+        source={imageSource}
         style={[
           styles.image,
           {
@@ -36,6 +43,7 @@ export const Avatar: React.FC<AvatarProps> = ({
             height: size,
             borderRadius: size / 2,
           },
+          style as StyleProp<ImageStyle>,
         ]}
       />
     );
@@ -52,6 +60,7 @@ export const Avatar: React.FC<AvatarProps> = ({
             borderRadius: size / 2,
             backgroundColor: color,
           },
+          style as StyleProp<ViewStyle>,
         ]}
       >
         <Text
@@ -78,6 +87,7 @@ export const Avatar: React.FC<AvatarProps> = ({
           borderRadius: size / 2,
           backgroundColor: color,
         },
+        style as StyleProp<ViewStyle>,
       ]}
     >
       <MaterialIcons name="person" size={size * 0.6} color="#FFFFFF" />

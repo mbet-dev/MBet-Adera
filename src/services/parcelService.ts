@@ -123,6 +123,22 @@ export const parcelService = {
   },
 
   /**
+   * Alias for createDelivery for backward compatibility
+   * Used by the EnhancedCreateOrderForm component
+   */
+  async createOrder(formData: NewDeliveryFormData): Promise<Parcel | null> {
+    // Extract user ID from the form data
+    const userId = formData.sender_id;
+    if (!userId) {
+      console.error('Error: No sender_id provided in form data');
+      return null;
+    }
+    
+    console.log('Creating order with sender ID:', userId);
+    return this.createDelivery(formData, userId);
+  },
+
+  /**
    * Get all parcels for the current user
    */
   async getParcels(userId: string): Promise<Parcel[]> {

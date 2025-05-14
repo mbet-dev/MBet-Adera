@@ -1,4 +1,6 @@
-import { supabase } from './supabase';
+import { supabase, getStoredUserId } from './supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import storageUtils from '../utils/storageUtils';
 
 export interface Wallet {
   id: string;
@@ -26,54 +28,75 @@ export const walletService = {
    */
   async getOrCreateWallet(): Promise<{ wallet: Wallet | null; error: any }> {
     try {
-      const { data: user, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
       
-      // Check if wallet exists
-      const { data: existingWallet, error: walletError } = await supabase
+      if (authError || !user) {
+        throw new Error('No authenticated user found');
+      }
+
+      // Try to get existing wallet
+      const { data: existingWallet, error: fetchError } = await supabase
         .from('wallets')
         .select('*')
-        .eq('user_id', user.user.id)
+        .eq('user_id', user.id)
         .single();
-        
+
+      if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+        throw fetchError;
+      }
+
       if (existingWallet) {
+        // Cache the wallet data
+        await storageUtils.safeStore('mbet.wallet', existingWallet, 'WalletCache');
         return { wallet: existingWallet, error: null };
       }
-      
-      if (walletError && walletError.code !== 'PGRST116') {
-        // Error other than "not found"
-        throw walletError;
-      }
-      
-      // Create new wallet
-      const { data: newWallet, error: createError } = await supabase
+
+      // Create new wallet if none exists
+      const newWallet = {
+        user_id: user.id,
+        balance: 0,
+        currency: 'ETB',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { data: createdWallet, error: createError } = await supabase
         .from('wallets')
-        .insert({
-          user_id: user.user.id,
-          balance: 0,
-          currency: 'ETB', // Ethiopian Birr
-        })
+        .insert([newWallet])
         .select()
         .single();
-        
-      if (createError) throw createError;
-      
-      return { wallet: newWallet, error: null };
+
+      if (createError) {
+        console.error('Error creating wallet:', createError);
+        return { wallet: null, error: createError };
+      }
+
+      // Cache the new wallet data
+      await storageUtils.safeStore('mbet.wallet', createdWallet, 'WalletCache');
+      return { wallet: createdWallet, error: null };
     } catch (error) {
-      console.error('Error getting or creating wallet:', error);
+      console.error('Unexpected error in getOrCreateWallet:', error);
       return { wallet: null, error };
     }
   },
   
   /**
-   * Get wallet balance
+   * Get wallet balance with fallback to local storage
    */
   async getBalance(): Promise<{ balance: number; error: any }> {
     try {
+      // Try to get from API
       const { wallet, error } = await this.getOrCreateWallet();
-      if (error) throw error;
       
-      return { balance: wallet?.balance || 0, error: null };
+      if (error) {
+        throw error;
+      }
+
+      if (wallet) {
+        return { balance: wallet.balance, error: null };
+      }
+
+      return { balance: 0, error: null };
     } catch (error) {
       console.error('Error getting wallet balance:', error);
       return { balance: 0, error };
@@ -246,26 +269,113 @@ export const walletService = {
   },
   
   /**
-   * Get transaction history
+   * Get transaction history with offline support
    */
   async getTransactionHistory(): Promise<{ transactions: Transaction[]; error: any }> {
     try {
-      const { wallet, error: walletError } = await this.getOrCreateWallet();
-      if (walletError) throw walletError;
-      if (!wallet) throw new Error('Wallet not found');
+      // First check if we're authenticated
+      const { data: sessionData } = await supabase.auth.getSession();
+      const isAuthenticated = !!sessionData.session;
       
-      const { data, error } = await supabase
+      if (!isAuthenticated) {
+        return { transactions: [], error: new Error('Not authenticated') };
+      }
+
+      // Get wallet first
+      const { wallet, error: walletError } = await this.getOrCreateWallet();
+      
+      if (walletError || !wallet) {
+        return { transactions: [], error: walletError };
+      }
+
+      // Get transactions
+      const { data: transactionsData, error } = await supabase
         .from('wallet_transactions')
         .select('*')
         .eq('wallet_id', wallet.id)
         .order('created_at', { ascending: false });
         
-      if (error) throw error;
-      
-      return { transactions: data || [], error: null };
+      if (error) {
+        console.error('Error fetching transactions:', error);
+        return { transactions: [], error };
+      }
+
+      // Cache transactions
+      if (transactionsData && transactionsData.length > 0) {
+        await storageUtils.safeStore('mbet.transactions', transactionsData, 'TransactionCache');
+      }
+
+      return { transactions: transactionsData || [], error: null };
     } catch (error) {
       console.error('Error getting transaction history:', error);
       return { transactions: [], error };
+    }
+  },
+  
+  /**
+   * Get transaction statistics for the user
+   */
+  async getTransactionStats(): Promise<{ 
+    totalTransactions: number; 
+    totalDeposits: number; 
+    totalWithdrawals: number;
+    totalPayments: number;
+    error: any 
+  }> {
+    try {
+      const { wallet, error: walletError } = await this.getOrCreateWallet();
+      if (walletError) throw walletError;
+      
+      if (!wallet) {
+        return {
+          totalTransactions: 0,
+          totalDeposits: 0,
+          totalWithdrawals: 0,
+          totalPayments: 0,
+          error: null
+        };
+      }
+      
+      // Get all transactions
+      const { data: transactions, error } = await supabase
+        .from('wallet_transactions')
+        .select('*')
+        .eq('wallet_id', wallet.id);
+        
+      if (error) throw error;
+      
+      if (!transactions) {
+        return {
+          totalTransactions: 0,
+          totalDeposits: 0,
+          totalWithdrawals: 0,
+          totalPayments: 0,
+          error: null
+        };
+      }
+      
+      // Calculate statistics
+      const totalTransactions = transactions.length;
+      const totalDeposits = transactions.filter(t => t.type === 'deposit').length;
+      const totalWithdrawals = transactions.filter(t => t.type === 'withdrawal').length;
+      const totalPayments = transactions.filter(t => t.type === 'payment').length;
+      
+      return {
+        totalTransactions,
+        totalDeposits,
+        totalWithdrawals,
+        totalPayments,
+        error: null
+      };
+    } catch (error) {
+      console.error('Error getting transaction stats:', error);
+      return {
+        totalTransactions: 0,
+        totalDeposits: 0,
+        totalWithdrawals: 0,
+        totalPayments: 0,
+        error
+      };
     }
   }
 }; 

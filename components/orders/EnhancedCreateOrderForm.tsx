@@ -14,7 +14,7 @@ import {
   Dimensions,
   ScrollView,
 } from 'react-native';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../src/context/AuthContext';
 import { MaterialIcons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 // @ts-ignore - Let TypeScript ignore the import error
 import { PartnerLocationSelect } from './index';

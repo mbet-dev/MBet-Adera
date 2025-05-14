@@ -1,20 +1,30 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Platform, Image } from 'react-native';
 import { router } from 'expo-router';
 import Animated, {
   useAnimatedRef,
   useAnimatedScrollHandler,
   useSharedValue,
-  withSpring,
-  withTiming,
   useAnimatedStyle,
   interpolate,
+  runOnJS,
 } from 'react-native-reanimated';
 import { storage } from '../src/utils/storage';
 import { WebLayout } from '../src/components/layout/WebLayout';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Calculate a responsive width that works well on both web and mobile
+const getItemWidth = () => {
+  if (Platform.OS === 'web') {
+    // On web, use either the screen width or a maximum size
+    return Math.min(SCREEN_WIDTH, 480);
+  }
+  return SCREEN_WIDTH;
+};
+
+const ITEM_WIDTH = getItemWidth();
 
 interface OnboardingItem {
   title: string;
@@ -47,18 +57,18 @@ const ONBOARDING_DATA: OnboardingItem[] = [
 
 const OnboardingItemComponent = React.memo(({ item, index, x }: { item: OnboardingItem; index: number; x: Animated.SharedValue<number> }) => {
   const animatedStyle = useAnimatedStyle(() => {
-    const position = x.value / SCREEN_WIDTH;
+    const position = x.value / ITEM_WIDTH;
     const scale = interpolate(
       position,
-      [-1, 0, 1, 2],
-      [0.8, 1, 1, 0.8],
+      [index - 1, index, index + 1],
+      [0.8, 1, 0.8],
       'clamp'
     );
 
     const opacity = interpolate(
       position,
-      [-1, 0, 1, 2],
-      [0.5, 1, 1, 0.5],
+      [index - 1, index, index + 1],
+      [0.5, 1, 0.5],
       'clamp'
     );
 
@@ -82,11 +92,13 @@ const OnboardingItemComponent = React.memo(({ item, index, x }: { item: Onboardi
   };
 
   return (
-    <View style={[styles.itemContainer, { width: SCREEN_WIDTH }]}>
+    <View style={[styles.itemContainer, { width: ITEM_WIDTH }]}>
       <Animated.View
         style={[styles.placeholder, { backgroundColor: item.color }, animatedStyle]}
       >
-        <Ionicons name={getIconForIndex(index)} size={64} color="#fff" />
+        <View style={styles.iconContainer}>
+          <Ionicons name={getIconForIndex(index)} size={Platform.OS === 'web' ? 80 : 64} color="#fff" />
+        </View>
       </Animated.View>
       <Text style={styles.title}>{item.title}</Text>
       <Text style={styles.description}>{item.description}</Text>
@@ -102,6 +114,10 @@ export default function OnboardingScreen() {
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       x.value = event.contentOffset.x;
+      const newIndex = Math.round(event.contentOffset.x / ITEM_WIDTH);
+      if (newIndex !== Math.round(x.value / ITEM_WIDTH)) {
+        runOnJS(setCurrentIndex)(newIndex);
+      }
     },
   });
 
@@ -127,6 +143,14 @@ export default function OnboardingScreen() {
     <OnboardingItemComponent item={item} index={index} x={x} />
   ), [x]);
 
+  const goToSlide = React.useCallback((index: number) => {
+    flatListRef.current?.scrollToIndex({
+      index,
+      animated: true,
+    });
+    setCurrentIndex(index);
+  }, []);
+
   return (
     <WebLayout>
       <View style={styles.container}>
@@ -140,21 +164,30 @@ export default function OnboardingScreen() {
           showsHorizontalScrollIndicator={false}
           onScroll={scrollHandler}
           scrollEventThrottle={16}
+          initialNumToRender={1}
+          maxToRenderPerBatch={1}
+          windowSize={3}
           onMomentumScrollEnd={(event) => {
-            const newIndex = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+            const newIndex = Math.round(event.nativeEvent.contentOffset.x / ITEM_WIDTH);
             setCurrentIndex(newIndex);
           }}
+          style={styles.flatList}
+          contentContainerStyle={styles.flatListContent}
+          snapToInterval={ITEM_WIDTH} // Make sure it snaps to each slide
+          decelerationRate="fast" // Improve snap behavior
         />
 
         <View style={styles.footer}>
           <View style={styles.pagination}>
             {ONBOARDING_DATA.map((_, index) => (
-              <View
+              <TouchableOpacity
                 key={index}
                 style={[
                   styles.paginationDot,
                   index === currentIndex && styles.paginationDotActive,
                 ]}
+                onPress={() => goToSlide(index)}
+                activeOpacity={0.7}
               />
             ))}
           </View>
@@ -188,54 +221,65 @@ const styles = StyleSheet.create<any>({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    maxWidth: Platform.OS === 'web' ? 800 : undefined,
+    maxWidth: Platform.OS === 'web' ? 480 : undefined, // Match WebLayout content max-width
     width: Platform.OS === 'web' ? '100%' : undefined,
-    alignSelf: Platform.OS === 'web' ? 'center' : undefined,
+    alignSelf: 'center',
+    overflow: 'hidden',
+  },
+  flatList: {
+    flex: 1,
+  },
+  flatListContent: {
+    alignItems: 'center',
   },
   itemContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Platform.OS === 'web' ? 40 : 20,
+    padding: 20,
   },
   placeholder: {
-    width: Platform.OS === 'web' ? 300 : SCREEN_WIDTH * 0.6,
-    height: Platform.OS === 'web' ? 300 : SCREEN_WIDTH * 0.6,
-    borderRadius: Platform.OS === 'web' ? 150 : SCREEN_WIDTH * 0.3,
-    marginBottom: Platform.OS === 'web' ? 60 : 40,
+    width: Platform.OS === 'web' ? 200 : SCREEN_WIDTH * 0.6,
+    height: Platform.OS === 'web' ? 200 : SCREEN_WIDTH * 0.6,
+    borderRadius: Platform.OS === 'web' ? 100 : SCREEN_WIDTH * 0.3,
+    marginBottom: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  iconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center', 
+  },
   title: {
-    fontSize: Platform.OS === 'web' ? 32 : 24,
+    fontSize: Platform.OS === 'web' ? 28 : 24,
     fontWeight: 'bold',
     marginBottom: 16,
     textAlign: 'center',
     color: '#4CAF50',
   },
   description: {
-    fontSize: Platform.OS === 'web' ? 18 : 16,
+    fontSize: Platform.OS === 'web' ? 16 : 16,
     textAlign: 'center',
     color: '#666',
-    paddingHorizontal: Platform.OS === 'web' ? 40 : 20,
-    maxWidth: Platform.OS === 'web' ? 600 : undefined,
+    paddingHorizontal: 20,
+    maxWidth: 400,
   },
   footer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    paddingVertical: Platform.OS === 'web' ? 30 : 20,
-    paddingHorizontal: Platform.OS === 'web' ? 40 : 20,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
     backgroundColor: '#fff',
-    borderTopWidth: Platform.OS === 'web' ? StyleSheet.hairlineWidth : 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#eee',
   },
   pagination: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Platform.OS === 'web' ? 30 : 20,
+    marginBottom: 20,
   },
   paginationDot: {
     width: 8,
@@ -243,7 +287,12 @@ const styles = StyleSheet.create<any>({
     borderRadius: 4,
     backgroundColor: '#ccc',
     marginHorizontal: 4,
-    ...(Platform.OS === 'web' ? { transitionProperty: 'all', transitionDuration: '0.3s', transitionTimingFunction: 'ease' } : {}),
+    cursor: Platform.OS === 'web' ? 'pointer' : 'default',
+    ...(Platform.OS === 'web' ? { 
+      transitionProperty: 'all', 
+      transitionDuration: '0.3s', 
+      transitionTimingFunction: 'ease' 
+    } : {}),
   },
   paginationDotActive: {
     backgroundColor: '#4CAF50',
@@ -254,7 +303,7 @@ const styles = StyleSheet.create<any>({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    maxWidth: Platform.OS === 'web' ? 600 : undefined,
+    maxWidth: 400,
     alignSelf: 'center',
     width: '100%',
   },
@@ -262,22 +311,22 @@ const styles = StyleSheet.create<any>({
     padding: 15,
   },
   skipButtonText: {
-    fontSize: Platform.OS === 'web' ? 18 : 16,
+    fontSize: 16,
     color: '#666',
   },
   nextButton: {
     backgroundColor: '#4CAF50',
     padding: 15,
     borderRadius: 25,
-    minWidth: Platform.OS === 'web' ? 150 : 100,
+    minWidth: 100,
     alignItems: 'center',
   },
   startButton: {
     width: '100%',
-    maxWidth: Platform.OS === 'web' ? 300 : undefined,
+    maxWidth: 300,
   },
   nextButtonText: {
-    fontSize: Platform.OS === 'web' ? 18 : 16,
+    fontSize: 16,
     color: '#fff',
     fontWeight: 'bold',
   },

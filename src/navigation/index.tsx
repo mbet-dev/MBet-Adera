@@ -7,6 +7,8 @@ import { RootStackParamList } from './types';
 import Login from '../screens/auth/Login';
 import Register from '../screens/auth/Register';
 import ForgotPassword from '../screens/auth/ForgotPassword';
+import NewDelivery from '../screens/main/NewDelivery';
+import HomeNew from '../screens/main/HomeNew';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -21,9 +23,13 @@ export const Navigation = () => {
             <Stack.Screen name="Login" component={Login} />
             <Stack.Screen name="Register" component={Register} />
             <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
+            <Stack.Screen name="NewDelivery" component={NewDelivery} />
           </>
         ) : (
-          <Stack.Screen name="Main" component={null} />
+          <>
+            <Stack.Screen name="Main" component={HomeNew} />
+            <Stack.Screen name="NewDelivery" component={NewDelivery} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

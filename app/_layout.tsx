@@ -1,12 +1,14 @@
-import { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
+import { useEffect, useState, Component, ErrorInfo, ReactNode, useRef } from 'react';
 import { Stack, useRouter, useSegments, SplashScreen } from 'expo-router';
-import { AuthProvider } from '@/context/AuthContext';
+import { AuthProvider } from '../src/context/AuthContext';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { theme } from '../theme';
-import { LogBox, View, Text, TouchableOpacity } from 'react-native';
-import { SessionProvider, useSession } from '@components/SessionProvider';
+import { LogBox, View, Text, TouchableOpacity, AppState, AppStateStatus } from 'react-native';
+import { SessionProvider, useSession } from '../components/SessionProvider';
 import { storage } from '../src/utils/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { HAS_ACTIVE_SESSION_KEY } from '../lib/supabase';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -69,38 +71,123 @@ class CustomErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 function RootLayoutNav() {
-  const { session, loading } = useSession();
+  const { session, loading, manuallyRestoreSession } = useSession();
   const segments = useSegments();
   const router = useRouter();
   const [checkedOnboarding, setCheckedOnboarding] = useState(false);
+  const [lastActiveTime, setLastActiveTime] = useState<number>(Date.now());
+  const appState = useRef(AppState.currentState);
+  const [appStateVisible, setAppStateVisible] = useState(appState.current);
+  
+  // Watch for app state changes to restore session
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", async (nextAppState: AppStateStatus) => {
+      // When app comes to foreground from background
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
+        console.log("App has come to the foreground!");
+        
+        // Check time since last active - if it's been more than 1 minute
+        const now = Date.now();
+        const timeSinceLastActive = now - lastActiveTime;
+        
+        if (timeSinceLastActive > 60000) { // 1 minute
+          console.log("App was inactive for more than 1 minute, checking session");
+          
+          // Check if we still have our session flag
+          const hasActiveSession = await AsyncStorage.getItem(HAS_ACTIVE_SESSION_KEY);
+          
+          if (hasActiveSession === 'true' && !session) {
+            console.log("We have an active session flag but no session, attempting to restore");
+            await manuallyRestoreSession();
+          }
+        }
+        
+        setLastActiveTime(now);
+      }
+      
+      appState.current = nextAppState;
+      setAppStateVisible(appState.current);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [session, lastActiveTime]);
 
   useEffect(() => {
     if (loading || checkedOnboarding) return;
 
     const checkOnboarding = async () => {
-      const inAuthGroup = segments[0] === 'auth';
-      const inOnboarding = segments[0] === 'onboarding';
-      let hasSeenOnboarding = false;
       try {
-        const value = await storage.getItem('hasSeenOnboarding');
-        hasSeenOnboarding = value === 'true';
-      } catch (e) {
-        hasSeenOnboarding = false;
-      }
-
-      if (!session && !inAuthGroup && !inOnboarding) {
-        if (!hasSeenOnboarding) {
-          router.replace('/onboarding');
-        } else {
-          router.replace('/auth/login');
+        // Check for active session first for faster initial load
+        const hasActiveSession = await AsyncStorage.getItem(HAS_ACTIVE_SESSION_KEY);
+        
+        // Only proceed with navigation checks if we're not in an initial loading state
+        const inAuthGroup = segments[0] === 'auth';
+        const inOnboarding = segments[0] === 'onboarding';
+        
+        // Get onboarding status
+        let hasSeenOnboarding = false;
+        try {
+          const value = await storage.getItem('hasSeenOnboarding');
+          hasSeenOnboarding = value === 'true';
+        } catch (e) {
+          hasSeenOnboarding = false;
         }
-      } else if (session && inAuthGroup) {
-        router.replace('/');
+
+        // Main navigation logic with improved handling:
+        if (session) {
+          // User is logged in - ensure session flag is set
+          await AsyncStorage.setItem(HAS_ACTIVE_SESSION_KEY, 'true');
+          
+          if (inAuthGroup || inOnboarding) {
+            // Redirect to main app if they're on auth or onboarding screens
+            router.replace('/(tabs)');
+          }
+        } else {
+          // No active session object, but check if flag indicates we should have one
+          if (hasActiveSession === 'true' && !loading) {
+            console.log('Session flag indicates active session, but session object missing - trying restoration');
+            const restored = await manuallyRestoreSession();
+            
+            if (restored) {
+              // Restoration worked - redirect if needed
+              if (inAuthGroup || inOnboarding) {
+                // Stay on current screen - restoration will handle navigation
+              } else {
+                console.log('Session restored successfully');
+              }
+              setCheckedOnboarding(true);
+              return;
+            } else {
+              console.log('Session restoration failed despite active flag');
+              // Clear the flag since restoration failed
+              await AsyncStorage.removeItem(HAS_ACTIVE_SESSION_KEY);
+            }
+          }
+          
+          // User is definitely not logged in
+          if (!inAuthGroup && !inOnboarding) {
+            // They're trying to access the app without being logged in
+            if (!hasSeenOnboarding) {
+              router.replace('/onboarding');
+            } else {
+              router.replace('/auth/login');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error in navigation check:', error);
       }
+      
       setCheckedOnboarding(true);
     };
+    
     checkOnboarding();
-  }, [session, loading, segments, checkedOnboarding]);
+  }, [session, loading, segments, checkedOnboarding, manuallyRestoreSession]);
 
   useEffect(() => {
     if (!loading) {

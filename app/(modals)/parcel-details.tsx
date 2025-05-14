@@ -26,11 +26,11 @@ import * as FileSystem from 'expo-file-system';
 // Import utilities and services
 import { supabase } from '@/lib/supabase';
 import { formatDate, formatCurrency } from '@/utils/formatting';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '../../src/context/AuthContext';
 import { parcelService } from '@/services/parcelService';
 
 // Import types from the parcel types file
-import { Parcel, ParcelStatus, Profile } from '@/types/parcel';
+import { Parcel, ParcelStatus, Profile, NullableAddress, DatabaseParcel } from '../../src/types/parcel';
 
 // Status configuration for styling and messages
 const statusConfig: Record<ParcelStatus, {
@@ -152,7 +152,29 @@ export default function ParcelDetailsModal() {
       
       console.log("Successfully fetched parcel:", parcelData.id);
       
-      setParcel(parcelData);
+      // Convert DatabaseParcel to Parcel if needed
+      const processedParcel: Parcel = {
+        ...parcelData,
+        // Ensure addresses are not null
+        pickup_address: parcelData.pickup_address || {
+          id: '',
+          partner_id: '',
+          address_line: 'Unknown location',
+          city: 'Unknown',
+          created_at: '',
+          updated_at: ''
+        },
+        dropoff_address: parcelData.dropoff_address || {
+          id: '',
+          partner_id: '',
+          address_line: 'Unknown location',
+          city: 'Unknown',
+          created_at: '',
+          updated_at: ''
+        }
+      };
+      
+      setParcel(processedParcel);
       
       // Fetch sender and recipient profiles if available
       if (parcelData.sender_id) {

@@ -14,6 +14,7 @@ export default function ProfileLayout() {
         headerTitleStyle: {
           fontWeight: '600',
         },
+        animation: 'slide_from_right',
       }}
     >
       <Stack.Screen
@@ -27,6 +28,8 @@ export default function ProfileLayout() {
         options={{
           headerTitle: 'Wallet',
           headerShown: true,
+          headerTransparent: true,
+          headerBackTitle: 'Profile',
         }}
       />
       <Stack.Screen
@@ -48,6 +51,13 @@ export default function ProfileLayout() {
         options={{
           headerTitle: 'Edit Profile',
           headerShown: true,
+          headerBackTitle: 'Profile',
+        }}
+      />
+      <Stack.Screen
+        name="EnhancedProfileScreen"
+        options={{
+          headerShown: false,
         }}
       />
     </Stack>

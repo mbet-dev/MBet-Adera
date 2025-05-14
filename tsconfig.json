@@ -8,34 +8,34 @@
         "./*"
       ],
       "@components/*": [
-        "components/*"
+        "src/components/*"
       ],
       "@lib/*": [
-        "lib/*"
+        "src/lib/*"
       ],
       "@utils/*": [
-        "utils/*"
+        "src/utils/*"
       ],
       "@hooks/*": [
-        "hooks/*"
+        "src/hooks/*"
       ],
       "@context/*": [
-        "context/*"
+        "src/context/*"
       ],
       "@assets/*": [
-        "assets/*"
+        "src/assets/*"
       ],
       "@constants/*": [
-        "constants/*"
+        "src/constants/*"
       ],
       "@types/*": [
-        "types/*"
+        "src/types/*"
       ],
       "@services/*": [
-        "services/*"
+        "src/services/*"
       ],
       "@theme/*": [
-        "theme/*"
+        "src/theme/*"
       ]
     },
     "esModuleInterop": true,

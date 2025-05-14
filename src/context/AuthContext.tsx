@@ -61,46 +61,96 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Different approach based on platform
         if (Platform.OS === 'web') {
-          // Web platform navigation
-          router.replace('/(tabs)');
+          // Web platform navigation with fallback
+          try {
+            router.replace('/(tabs)');
+          } catch (webNavError) {
+            console.error('⛔ Web navigation error:', webNavError);
+            setTimeout(() => router.navigate('/(tabs)'), 300);
+          } finally {
+            // Reset navigation flag after attempts are complete
+            setTimeout(() => AsyncStorage.setItem('NAVIGATION_IN_PROGRESS', 'false'), 1000);
+          }
         } else {
-          // Native platform navigation needs more time and might need different approach
+          // Native platform navigation with multiple fallbacks and increased delays
+          // Initial delay to ensure session is fully established
           setTimeout(() => {
             try {
-              console.log('🧭 Attempting primary navigation...');
+              console.log('🧭 Attempting primary navigation to tabs...');
               router.replace('/(tabs)');
             } catch (navError) {
               console.error('⛔ Navigation error on first attempt:', navError);
               
-              // If the first attempt fails, try with alternative navigation
+              // First fallback: try push instead of replace after delay
               setTimeout(() => {
                 try {
-                  console.log('🧭 Attempting secondary navigation...');
-                  // On native, sometimes push works better than replace
+                  console.log('🧭 Attempting push navigation to tabs...');
                   router.push('/(tabs)');
                 } catch (retryError) {
-                  console.error('⛔ Secondary navigation failed:', retryError);
+                  console.error('⛔ Push navigation failed:', retryError);
                   
-                  // Last resort
-                  console.log('🧭 Attempting fallback navigation...');
-                  router.navigate('/(tabs)');
+                  // Second fallback: try navigate
+                  setTimeout(() => {
+                    try {
+                      console.log('🧭 Attempting navigate to tabs...');
+                      router.navigate('/(tabs)');
+                    } catch (navigateError) {
+                      console.error('⛔ Navigate approach failed:', navigateError);
+                      
+                      // Third fallback: try specific tab
+                      setTimeout(() => {
+                        try {
+                          console.log('🧭 Attempting navigation to specific tab...');
+                          router.replace('/(tabs)/home');
+                        } catch (specificTabError) {
+                          console.error('⛔ Specific tab navigation failed:', specificTabError);
+                          
+                          // Final fallback using brute force reset of navigation state
+                          console.log('🧭 Attempting final fallback navigation...');
+                          router.navigate('/(tabs)');
+                        }
+                      }, 300);
+                    }
+                  }, 300);
                 }
-              }, 800); // Increased delay for retry
+              }, 800);
             } finally {
-              // Reset navigation flag after attempts are complete
+              // Reset navigation flag after all attempts are complete
               setTimeout(() => {
                 AsyncStorage.setItem('NAVIGATION_IN_PROGRESS', 'false')
                   .catch(err => console.error('Error resetting navigation flag:', err));
-              }, 1500);
+              }, 2500);
             }
-          }, 500); // Increased initial delay
+          }, 800); // Increased initial delay
         }
       } catch (navError) {
         console.error('⛔ Navigation error:', navError);
-        AsyncStorage.setItem('NAVIGATION_IN_PROGRESS', 'false').catch(console.error);
+        
+        // Ensure flag is reset even if error occurs
+        AsyncStorage.setItem('NAVIGATION_IN_PROGRESS', 'false')
+          .catch(err => console.error('Error resetting navigation flag after error:', err));
+        
+        // Final fallback attempt
+        setTimeout(() => {
+          try {
+            console.log('🧭 Executing emergency navigation fallback...');
+            router.navigate('/(tabs)');
+          } catch (emergencyError) {
+            console.error('⛔ Emergency navigation failed:', emergencyError);
+          }
+        }, 1500);
       }
     }).catch(err => {
       console.error('Error checking navigation status:', err);
+      
+      // Force navigation if checking navigation progress fails
+      setTimeout(() => {
+        try {
+          router.navigate('/(tabs)');
+        } catch (error) {
+          console.error('Final navigation attempt failed:', error);
+        }
+      }, 1000);
     });
   };
 
@@ -135,10 +185,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Store session flag
             await AsyncStorage.setItem(AUTH_SESSION_KEY, 'true');
             
-            // Check if we should navigate to home
+            // Check if we should navigate to home (either standard redirect or forced navigation)
             const authRedirect = await AsyncStorage.getItem('AUTH_REDIRECT_HOME');
             const hasSession = await AsyncStorage.getItem('HAS_ACTIVE_SESSION');
-            if (authRedirect === 'true' || hasSession === 'true') {
+            const forceNavigation = await AsyncStorage.getItem('FORCE_NAVIGATION');
+            
+            if (forceNavigation === 'true') {
+              console.log('🔥 Force navigation flag detected, immediately navigating');
+              // Clear the force flag to prevent navigation loops
+              await AsyncStorage.removeItem('FORCE_NAVIGATION');
+              navigateToHome();
+            } else if (authRedirect === 'true' || hasSession === 'true') {
               console.log('🔍 Found redirect flag during initialization, navigating to home');
               navigateToHome();
             }
@@ -191,8 +248,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Clear any navigation locks
           await AsyncStorage.setItem('NAVIGATION_IN_PROGRESS', 'false');
           
-          console.log(`🚀 Auth event ${event} triggering navigation`);
-          navigateToHome();
+          // Check for force navigation flag
+          const forceNavigation = await AsyncStorage.getItem('FORCE_NAVIGATION');
+          if (forceNavigation === 'true') {
+            // Different user login handling - clear the flag
+            await AsyncStorage.removeItem('FORCE_NAVIGATION');
+            console.log('🚀 Force flag detected, prioritizing navigation');
+            navigateToHome();
+          } else {
+            console.log(`🚀 Auth event ${event} triggering navigation`);
+            navigateToHome();
+          }
         };
         
         // Special handling for sign out
@@ -204,7 +270,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             AsyncStorage.removeItem(AUTH_SESSION_KEY),
             AsyncStorage.removeItem('AUTH_REDIRECT_HOME'),
             AsyncStorage.removeItem('HAS_ACTIVE_SESSION'),
-            AsyncStorage.removeItem('NAVIGATION_IN_PROGRESS')
+            AsyncStorage.removeItem('NAVIGATION_IN_PROGRESS'),
+            AsyncStorage.removeItem('FORCE_NAVIGATION')
           ]);
           
           // Clear state
@@ -366,7 +433,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.removeItem(AUTH_SESSION_KEY),
         AsyncStorage.removeItem('AUTH_REDIRECT_HOME'),
         AsyncStorage.removeItem('HAS_ACTIVE_SESSION'),
-        AsyncStorage.removeItem('NAVIGATION_IN_PROGRESS')
+        AsyncStorage.removeItem('NAVIGATION_IN_PROGRESS'),
+        AsyncStorage.removeItem('FORCE_NAVIGATION')
       ]);
       
       console.log('🧹 Session flags cleared');

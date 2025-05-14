@@ -21,7 +21,7 @@ import { formatCurrency, formatDate } from '../../../src/utils/formatting';
 import QRCode from 'react-native-qrcode-svg';
 import { Parcel, Address, ParcelStatus } from '@/types/parcel';
 import { parcelService } from '../../../src/services/parcelService';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '../../../src/context/AuthContext';
 import { Avatar } from '../../../components/Avatar';
 
 const windowWidth = Dimensions.get('window').width;

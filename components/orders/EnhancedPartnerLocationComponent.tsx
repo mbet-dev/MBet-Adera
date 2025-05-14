@@ -14,6 +14,7 @@ import {
   Linking
 } from 'react-native';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../src/services/supabase';
 
 // Conditionally import MapView and Marker for different platforms
 let MapView: any, Marker: any;
@@ -47,90 +48,19 @@ if (Platform.OS === 'web') {
   }
 }
 
-// Mock data for partners - this would normally come from an API/database
-const MOCK_PARTNERS = [
-  {
-    id: '1',
-    name: 'Bole Express Couriers',
-    businessName: 'Bole Express Couriers',
-    address: 'Bole Road, Addis Ababa',
-    coordinates: {
-      latitude: 8.9806,
-      longitude: 38.7878
-    },
-    workingHours: '9:00 AM - 6:00 PM'
-  },
-  {
-    id: '2',
-    name: 'Kazanchis Post Center',
-    businessName: 'Kazanchis Post Center',
-    address: 'Kazanchis, Addis Ababa',
-    coordinates: {
-      latitude: 9.0167,
-      longitude: 38.7526
-    },
-    workingHours: '8:30 AM - 5:30 PM'
-  },
-  {
-    id: '3',
-    name: 'Piassa Delivery Hub',
-    businessName: 'Piassa Delivery Hub',
-    address: 'Piassa, Addis Ababa',
-    coordinates: {
-      latitude: 9.0356,
-      longitude: 38.7468
-    },
-    workingHours: '9:00 AM - 6:00 PM'
-  },
-  {
-    id: '4',
-    name: 'Merkato Shipping Center',
-    businessName: 'Merkato Shipping Center',
-    address: 'Merkato, Addis Ababa',
-    coordinates: {
-      latitude: 9.0384,
-      longitude: 38.7423
-    },
-    workingHours: '8:00 AM - 7:00 PM'
-  },
-  {
-    id: '5',
-    name: 'Mexico Square Post',
-    businessName: 'Mexico Square Post',
-    address: 'Mexico Square, Addis Ababa',
-    coordinates: {
-      latitude: 9.0147,
-      longitude: 38.7633
-    },
-    workingHours: '9:00 AM - 5:00 PM'
-  },
-  {
-    id: '6',
-    name: 'MBet-Adera Sorting Facility Center',
-    businessName: 'MBet-Adera Sorting Facility Center/Hub',
-    address: 'Central Addis Ababa',
-    coordinates: {
-      latitude: 9.0222,
-      longitude: 38.7468
-    },
-    workingHours: '24/7',
-    isFacility: true
-  }
-];
-
 // Define the Partner Location interface
 interface PartnerLocation {
   id: string;
-  name?: string;
-  businessName?: string;
-  address?: string;
-  coordinates?: {
+  business_name: string;
+  address: string;
+  coordinates: {
     latitude: number;
     longitude: number;
   };
-  workingHours?: string;
-  isFacility?: boolean;
-  [key: string]: any;
+  working_hours: string;
+  is_facility: boolean;
+  is_active: boolean;
+  verification_status: string;
 }
 
 interface PartnerLocationComponentProps {
@@ -156,6 +86,7 @@ export const EnhancedPartnerLocationComponent: React.FC<PartnerLocationComponent
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'dropdown' | 'map'>(defaultViewMode);
   const [filteredPartners, setFilteredPartners] = useState<PartnerLocation[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   // Initial region for map (Addis Ababa center)
   const [mapRegion, setMapRegion] = useState({
@@ -165,30 +96,42 @@ export const EnhancedPartnerLocationComponent: React.FC<PartnerLocationComponent
     longitudeDelta: 0.0421,
   });
 
-  // Fetch partner locations on mount
   useEffect(() => {
-    const fetchPartnerLocations = async () => {
-      try {
-        setLoading(true);
-        // Normally this would be an API call
-        // For now, we're just using mock data
-        
-        // Filter out the sorting facility - it cannot be used as pickup/dropoff
-        const availablePartners = MOCK_PARTNERS.filter(partner => !partner.isFacility);
-        
-        setPartners(availablePartners);
-        setFilteredPartners(availablePartners);
-      } catch (error) {
-        console.error('Error loading partner locations:', error);
-        setPartners([]);
-        setFilteredPartners([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchPartnerLocations();
+    fetchPartners();
   }, []);
+
+  const fetchPartners = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('partner_locations')
+        .select(`
+          id,
+          business_name,
+          address,
+          coordinates,
+          working_hours,
+          is_facility,
+          is_active,
+          verification_status
+        `)
+        .eq('is_active', true);
+
+      if (error) {
+        throw error;
+      }
+
+      setPartners(data || []);
+      setFilteredPartners(data || []);
+    } catch (err) {
+      console.error('Error fetching partners:', err);
+      setError('Failed to load partner locations');
+      setPartners([]);
+      setFilteredPartners([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filter partners when search query changes
   useEffect(() => {
@@ -197,8 +140,7 @@ export const EnhancedPartnerLocationComponent: React.FC<PartnerLocationComponent
     } else {
       const query = searchQuery.toLowerCase();
       const filtered = partners.filter(partner => 
-        partner.name?.toLowerCase().includes(query) || 
-        partner.businessName?.toLowerCase().includes(query) ||
+        partner.business_name?.toLowerCase().includes(query) || 
         partner.address?.toLowerCase().includes(query)
       );
       setFilteredPartners(filtered);
@@ -229,7 +171,7 @@ export const EnhancedPartnerLocationComponent: React.FC<PartnerLocationComponent
   };
 
   const openExternalMap = (latitude: number, longitude: number) => {
-    const label = selectedPartner?.businessName || 'Selected Location';
+    const label = selectedPartner?.business_name || 'Selected Location';
     const url = Platform.select({
       ios: `maps:0,0?q=${label}@${latitude},${longitude}`,
       android: `geo:0,0?q=${latitude},${longitude}(${label})`,
@@ -375,7 +317,7 @@ export const EnhancedPartnerLocationComponent: React.FC<PartnerLocationComponent
                   latitude: location.coordinates.latitude,
                   longitude: location.coordinates.longitude,
                 }}
-                title={location.businessName || location.name || 'Partner Location'}
+                title={location.business_name || 'Partner Location'}
                 description={location.address}
                 pinColor={isSelected ? 'red' : type === 'pickup' ? 'green' : 'blue'}
                 onPress={() => handleSelectPartner(location)}
@@ -408,9 +350,14 @@ export const EnhancedPartnerLocationComponent: React.FC<PartnerLocationComponent
       >
         <View style={styles.partnerItemContent}>
           <View style={styles.partnerInfo}>
-            <Text style={styles.partnerName}>{partner.businessName || partner.name}</Text>
+            <Text style={styles.partnerName}>{partner.business_name}</Text>
             <Text style={styles.partnerAddress}>{partner.address}</Text>
-            <Text style={styles.partnerHours}>{partner.workingHours}</Text>
+            <Text style={styles.partnerHours}>
+              Hours: {partner.working_hours}
+            </Text>
+            {partner.is_facility && (
+              <Text style={styles.facilityBadge}>Facility</Text>
+            )}
           </View>
           
           {isSelected && (
@@ -438,7 +385,7 @@ export const EnhancedPartnerLocationComponent: React.FC<PartnerLocationComponent
       <View style={styles.selectedPartnerContainer}>
         <View style={styles.selectedPartnerInfo}>
           <Text style={styles.selectedPartnerName}>
-            {selectedPartner.businessName || selectedPartner.name}
+            {selectedPartner.business_name}
           </Text>
           <Text style={styles.selectedPartnerAddress}>
             {selectedPartner.address}
@@ -472,6 +419,22 @@ export const EnhancedPartnerLocationComponent: React.FC<PartnerLocationComponent
 
   // Modify the component's return statement to include error boundary
   try {
+    if (loading) {
+      return (
+        <View style={styles.container}>
+          <Text>Loading partner locations...</Text>
+        </View>
+      );
+    }
+
+    if (error) {
+      return (
+        <View style={styles.container}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.container}>
         <View style={styles.header}>
@@ -673,8 +636,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   label: {
-    fontSize: 14,
-    color: '#333333',
+    fontSize: 16,
+    color: '#333',
     fontWeight: '500',
   },
   required: {
@@ -682,15 +645,11 @@ const styles = StyleSheet.create({
   },
   viewToggle: {
     flexDirection: 'row',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    overflow: 'hidden',
+    alignItems: 'center',
   },
   viewToggleButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    backgroundColor: '#F5F5F5',
+    padding: 4,
+    marginLeft: 8,
   },
   viewToggleButtonActive: {
     backgroundColor: '#E8F5E9',
@@ -721,20 +680,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   selectedPartnerContainer: {
-    flexDirection: 'column',
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
   },
   selectedPartnerInfo: {
-    flex: 1,
+    marginBottom: 8,
   },
   selectedPartnerName: {
-    color: '#333333',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '500',
+    marginBottom: 4,
   },
   selectedPartnerAddress: {
-    color: '#666666',
-    fontSize: 12,
-    marginTop: 2,
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
   },
   miniMapContainer: {
     height: 120,
@@ -791,21 +753,16 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    margin: 16,
+    marginBottom: 12,
   },
   searchIcon: {
     marginRight: 8,
   },
   searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: '#333333',
-    height: 40,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
   },
   clearButton: {
     padding: 4,
@@ -898,16 +855,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888888',
   },
+  facilityBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#e3f2fd',
+    color: '#1976d2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    fontSize: 12,
+  },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 32,
+    padding: 20,
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#666666',
-    marginTop: 12,
-    fontWeight: '500',
+    color: '#666',
+    textAlign: 'center',
   },
   emptyStateSubtext: {
     fontSize: 14,
@@ -978,5 +945,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     marginLeft: 4,
+  },
+  errorText: {
+    color: '#d32f2f',
+    textAlign: 'center',
+    fontSize: 14,
+    marginTop: 8,
   },
 }); 

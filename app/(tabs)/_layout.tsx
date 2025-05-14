@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View, Text, ActivityIndicator } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '../../src/context/AuthContext';
 import Colors from '../../constants/Colors';
 import { useRouter } from 'expo-router';
 

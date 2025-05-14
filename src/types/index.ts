@@ -21,6 +21,14 @@ export interface Parcel {
   trackingCode: string;
   createdAt: string;
   updatedAt: string;
+  
+  // Add database snake_case property names
+  sender_id?: string;
+  recipient_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  
+  // Existing additional properties
   pickup_address?: string;
   dropoff_address?: string;
   pickup_latitude?: number;
