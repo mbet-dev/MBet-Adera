@@ -1,0 +1,6 @@
+id,name,description,is_active,created_at,updated_at
+35cac25a-0777-77da-35a8-1805465b9878,Wallet,In-app wallet balance,true,2025-05-14 16:20:27.475309+00,2025-05-14 16:20:27.475309+00
+8842602e-0658-b88a-b650-027d48e680e4,YenePay,Online payment with YenePay,true,2025-05-14 16:20:27.475309+00,2025-05-14 16:20:27.475309+00
+885782cc-0280-c17b-e21f-2dd75b6d6d50,TeleBirr,Mobile payment with TeleBirr,true,2025-05-14 16:20:27.475309+00,2025-05-14 16:20:27.475309+00
+969535a3-74ef-8577-004d-2400d6d919ce,Cash on Delivery,Pay cash when parcel is delivered,true,2025-05-14 16:20:27.475309+00,2025-05-14 16:20:27.475309+00
+ad66415c-0f7f-6bdb-51ff-699af45abfd0,Bank Transfer,Direct bank transfer,true,2025-05-14 16:20:27.475309+00,2025-05-14 16:20:27.475309+00

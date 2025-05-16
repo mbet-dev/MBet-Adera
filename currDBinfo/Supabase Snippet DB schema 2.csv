@@ -1,0 +1,542 @@
+table_name,column_name,data_type,is_nullable
+addresses,id,uuid,NO
+addresses,address_line,text,YES
+addresses,street_address,text,YES
+addresses,city,text,YES
+addresses,latitude,numeric,YES
+addresses,longitude,numeric,YES
+addresses,is_facility,boolean,YES
+addresses,created_at,timestamp with time zone,YES
+addresses,updated_at,timestamp with time zone,YES
+addresses,partner_id,uuid,YES
+addresses,user_id,uuid,YES
+addresses,state,text,YES
+addresses,postal_code,text,YES
+addresses,country,text,YES
+addresses,is_commercial,boolean,YES
+addresses,is_residential,boolean,YES
+addresses,is_verified,boolean,YES
+addresses,verification_method,text,YES
+addresses,address_notes,text,YES
+addresses_backup,id,uuid,YES
+addresses_backup,address_line,text,YES
+addresses_backup,street_address,text,YES
+addresses_backup,city,text,YES
+addresses_backup,latitude,numeric,YES
+addresses_backup,longitude,numeric,YES
+addresses_backup,is_facility,boolean,YES
+addresses_backup,created_at,timestamp with time zone,YES
+addresses_backup,updated_at,timestamp with time zone,YES
+addresses_backup,partner_id,uuid,YES
+addresses_backup,user_id,uuid,YES
+addresses_backup,state,text,YES
+addresses_backup,postal_code,text,YES
+addresses_backup,country,text,YES
+addresses_backup,is_commercial,boolean,YES
+addresses_backup,is_residential,boolean,YES
+addresses_backup,is_verified,boolean,YES
+addresses_backup,verification_method,text,YES
+addresses_backup,address_notes,text,YES
+chat_messages,id,uuid,NO
+chat_messages,room_id,uuid,YES
+chat_messages,sender_id,uuid,YES
+chat_messages,message,text,NO
+chat_messages,is_system,boolean,YES
+chat_messages,created_at,timestamp with time zone,YES
+chat_messages,updated_at,timestamp with time zone,YES
+chat_room_participants,id,uuid,NO
+chat_room_participants,room_id,uuid,YES
+chat_room_participants,user_id,uuid,YES
+chat_room_participants,role,text,YES
+chat_room_participants,joined_at,timestamp with time zone,YES
+chat_rooms,id,uuid,NO
+chat_rooms,name,text,YES
+chat_rooms,is_private,boolean,YES
+chat_rooms,created_at,timestamp with time zone,YES
+chat_rooms,updated_at,timestamp with time zone,YES
+deliveries,id,uuid,NO
+deliveries,tracking_number,text,NO
+deliveries,status,text,NO
+deliveries,current_location,jsonb,NO
+deliveries,pickup_location,jsonb,NO
+deliveries,dropoff_location,jsonb,NO
+deliveries,created_at,timestamp with time zone,NO
+deliveries,updated_at,timestamp with time zone,NO
+deliveries,user_id,uuid,NO
+delivery_notes,id,uuid,NO
+delivery_notes,parcel_id,uuid,NO
+delivery_notes,note_type,character varying,NO
+delivery_notes,content,text,NO
+delivery_notes,created_by,uuid,YES
+delivery_notes,created_at,timestamp with time zone,YES
+delivery_notes,is_internal,boolean,YES
+delivery_personnel,id,uuid,NO
+delivery_personnel,user_id,uuid,NO
+delivery_personnel,employee_id,text,YES
+delivery_personnel,status,text,YES
+delivery_personnel,current_location,jsonb,YES
+delivery_personnel,vehicle_type,text,YES
+delivery_personnel,vehicle_id,text,YES
+delivery_personnel,license_number,text,YES
+delivery_personnel,maximum_capacity,numeric,YES
+delivery_personnel,service_area,jsonb,YES
+delivery_personnel,is_online,boolean,YES
+delivery_personnel,last_online,timestamp with time zone,YES
+delivery_personnel,rating,numeric,YES
+delivery_personnel,total_ratings,integer,YES
+delivery_personnel,created_at,timestamp with time zone,YES
+delivery_personnel,updated_at,timestamp with time zone,YES
+delivery_ratings,id,uuid,NO
+delivery_ratings,parcel_id,uuid,NO
+delivery_ratings,user_id,uuid,NO
+delivery_ratings,rating,integer,NO
+delivery_ratings,feedback,text,YES
+delivery_ratings,rating_category,character varying,NO
+delivery_ratings,created_at,timestamp with time zone,YES
+delivery_routes,id,uuid,NO
+delivery_routes,personnel_id,uuid,NO
+delivery_routes,date,date,NO
+delivery_routes,route_order,jsonb,YES
+delivery_routes,estimated_start_time,timestamp with time zone,YES
+delivery_routes,estimated_end_time,timestamp with time zone,YES
+delivery_routes,actual_start_time,timestamp with time zone,YES
+delivery_routes,actual_end_time,timestamp with time zone,YES
+delivery_routes,total_distance,numeric,YES
+delivery_routes,status,text,YES
+delivery_routes,created_at,timestamp with time zone,YES
+delivery_routes,updated_at,timestamp with time zone,YES
+discount_codes,id,uuid,NO
+discount_codes,code,text,NO
+discount_codes,description,text,YES
+discount_codes,discount_type,text,NO
+discount_codes,discount_value,numeric,NO
+discount_codes,min_order_value,numeric,YES
+discount_codes,max_discount,numeric,YES
+discount_codes,is_one_time,boolean,YES
+discount_codes,is_active,boolean,YES
+discount_codes,valid_from,timestamp with time zone,YES
+discount_codes,valid_to,timestamp with time zone,YES
+discount_codes,usage_limit,integer,YES
+discount_codes,current_usage,integer,YES
+discount_codes,created_at,timestamp with time zone,YES
+discount_codes,updated_at,timestamp with time zone,YES
+faqs,id,uuid,NO
+faqs,question,text,NO
+faqs,answer,text,NO
+faqs,created_at,timestamp with time zone,YES
+faqs,updated_at,timestamp with time zone,YES
+favorite_contacts,id,uuid,NO
+favorite_contacts,user_id,uuid,YES
+favorite_contacts,name,text,NO
+favorite_contacts,phone_number,text,NO
+favorite_contacts,email,text,YES
+favorite_contacts,created_at,timestamp with time zone,YES
+favorite_contacts,updated_at,timestamp with time zone,YES
+favorite_locations,id,uuid,NO
+favorite_locations,user_id,uuid,YES
+favorite_locations,name,text,NO
+favorite_locations,address,text,NO
+favorite_locations,latitude,numeric,NO
+favorite_locations,longitude,numeric,NO
+favorite_locations,type,text,NO
+favorite_locations,created_at,timestamp with time zone,YES
+favorite_locations,updated_at,timestamp with time zone,YES
+geography_columns,f_table_catalog,name,YES
+geography_columns,f_table_schema,name,YES
+geography_columns,f_table_name,name,YES
+geography_columns,f_geography_column,name,YES
+geography_columns,coord_dimension,integer,YES
+geography_columns,srid,integer,YES
+geography_columns,type,text,YES
+geometry_columns,f_table_catalog,character varying,YES
+geometry_columns,f_table_schema,name,YES
+geometry_columns,f_table_name,name,YES
+geometry_columns,f_geometry_column,name,YES
+geometry_columns,coord_dimension,integer,YES
+geometry_columns,srid,integer,YES
+geometry_columns,type,character varying,YES
+notifications,id,uuid,NO
+notifications,user_id,uuid,YES
+notifications,type,text,NO
+notifications,title,text,NO
+notifications,message,text,NO
+notifications,read,boolean,YES
+notifications,data,jsonb,YES
+notifications,created_at,timestamp with time zone,YES
+notifications,updated_at,timestamp with time zone,YES
+parcel_assignments,id,uuid,NO
+parcel_assignments,parcel_id,uuid,NO
+parcel_assignments,personnel_id,uuid,NO
+parcel_assignments,status,text,YES
+parcel_assignments,assigned_at,timestamp with time zone,YES
+parcel_assignments,accepted_at,timestamp with time zone,YES
+parcel_assignments,completed_at,timestamp with time zone,YES
+parcel_assignments,assigned_by,uuid,YES
+parcel_assignments,priority,integer,YES
+parcel_assignments,notes,text,YES
+parcel_assignments,created_at,timestamp with time zone,YES
+parcel_assignments,updated_at,timestamp with time zone,YES
+parcel_status_history,id,uuid,NO
+parcel_status_history,parcel_id,uuid,NO
+parcel_status_history,status,text,NO
+parcel_status_history,location,jsonb,YES
+parcel_status_history,address_text,text,YES
+parcel_status_history,notes,text,YES
+parcel_status_history,performed_by,uuid,YES
+parcel_status_history,personnel_id,uuid,YES
+parcel_status_history,verification_code,text,YES
+parcel_status_history,proof_image_url,text,YES
+parcel_status_history,signature_url,text,YES
+parcel_status_history,reason_code,text,YES
+parcel_status_history,metadata,jsonb,YES
+parcel_status_history,created_at,timestamp with time zone,YES
+parcel_summary,id,uuid,YES
+parcel_summary,tracking_code,text,YES
+parcel_summary,status,text,YES
+parcel_summary,created_at,timestamp with time zone,YES
+parcel_summary,estimated_delivery_time,timestamp with time zone,YES
+parcel_summary,actual_delivery_time,timestamp with time zone,YES
+parcel_summary,package_size,text,YES
+parcel_summary,estimated_price,numeric,YES
+parcel_summary,actual_price,numeric,YES
+parcel_summary,payment_status,text,YES
+parcel_summary,sender_name,text,YES
+parcel_summary,receiver_name,text,YES
+parcel_summary,pickup_address,text,YES
+parcel_summary,pickup_city,text,YES
+parcel_summary,dropoff_address,text,YES
+parcel_summary,dropoff_city,text,YES
+parcel_tracking,id,uuid,NO
+parcel_tracking,parcel_id,uuid,YES
+parcel_tracking,status,text,NO
+parcel_tracking,location_id,uuid,YES
+parcel_tracking,latitude,numeric,YES
+parcel_tracking,longitude,numeric,YES
+parcel_tracking,courier_id,uuid,YES
+parcel_tracking,notes,text,YES
+parcel_tracking,created_at,timestamp with time zone,YES
+parcels,id,uuid,NO
+parcels,sender_id,uuid,YES
+parcels,receiver_id,uuid,YES
+parcels,pickup_address_id,uuid,YES
+parcels,dropoff_address_id,uuid,YES
+parcels,tracking_code,text,YES
+parcels,status,text,YES
+parcels,delivery_type,text,YES
+parcels,package_size,text,YES
+parcels,weight,numeric,YES
+parcels,dimensions,jsonb,YES
+parcels,estimated_delivery_time,timestamp with time zone,YES
+parcels,actual_delivery_time,timestamp with time zone,YES
+parcels,pickup_contact,text,YES
+parcels,pickup_phone,text,YES
+parcels,dropoff_contact,text,YES
+parcels,dropoff_phone,text,YES
+parcels,created_at,timestamp with time zone,YES
+parcels,updated_at,timestamp with time zone,YES
+parcels,handle_with_care,boolean,YES
+parcels,requires_refrigeration,boolean,YES
+parcels,is_fragile,boolean,YES
+parcels,delivery_instructions,text,YES
+parcels,custom_fields,jsonb,YES
+parcels,sender_signature_url,text,YES
+parcels,receiver_signature_url,text,YES
+parcels,delivery_attempts,integer,YES
+parcels,last_attempt_time,timestamp with time zone,YES
+parcels,delivery_photo_url,text,YES
+parcels,rating,integer,YES
+parcels,rating_comments,text,YES
+parcels,price_calculation_id,uuid,YES
+parcels,package_description,text,YES
+parcels,requires_signature,boolean,YES
+parcels,estimated_price,numeric,YES
+parcels,actual_price,numeric,YES
+parcels,payment_status,text,YES
+parcels,payment_method_id,uuid,YES
+parcels_with_addresses,id,uuid,YES
+parcels_with_addresses,tracking_code,text,YES
+parcels_with_addresses,sender_id,uuid,YES
+parcels_with_addresses,pickup_address_id,uuid,YES
+parcels_with_addresses,dropoff_address_id,uuid,YES
+parcels_with_addresses,package_size,text,YES
+parcels_with_addresses,weight,numeric,YES
+parcels_with_addresses,is_fragile,boolean,YES
+parcels_with_addresses,status,text,YES
+parcels_with_addresses,status_display,text,YES
+parcels_with_addresses,created_at,timestamp with time zone,YES
+parcels_with_addresses,updated_at,timestamp with time zone,YES
+parcels_with_addresses,pickup_address,text,YES
+parcels_with_addresses,pickup_city,text,YES
+parcels_with_addresses,pickup_latitude,numeric,YES
+parcels_with_addresses,pickup_longitude,numeric,YES
+parcels_with_addresses,pickup_business_name,text,YES
+parcels_with_addresses,pickup_partner_color,text,YES
+parcels_with_addresses,dropoff_address,text,YES
+parcels_with_addresses,dropoff_city,text,YES
+parcels_with_addresses,dropoff_latitude,numeric,YES
+parcels_with_addresses,dropoff_longitude,numeric,YES
+parcels_with_addresses,dropoff_business_name,text,YES
+parcels_with_addresses,dropoff_partner_color,text,YES
+partner_locations,id,uuid,YES
+partner_locations,business_name,text,YES
+partner_locations,contact_person,text,YES
+partner_locations,phone_number,text,YES
+partner_locations,email,text,YES
+partner_locations,business_type,text,YES
+partner_locations,description,text,YES
+partner_locations,working_hours,jsonb,YES
+partner_locations,color,text,YES
+partner_locations,is_facility,boolean,YES
+partner_locations,is_active,boolean,YES
+partner_locations,verification_status,text,YES
+partner_locations,rating,numeric,YES
+partner_locations,address_line,text,YES
+partner_locations,street_address,text,YES
+partner_locations,city,text,YES
+partner_locations,state,text,YES
+partner_locations,postal_code,text,YES
+partner_locations,country,text,YES
+partner_locations,latitude,numeric,YES
+partner_locations,longitude,numeric,YES
+partner_locations,address_verified,boolean,YES
+partners,id,uuid,NO
+partners,business_name,text,NO
+partners,phone_number,text,YES
+partners,address_id,uuid,YES
+partners,color,text,YES
+partners,is_facility,boolean,YES
+partners,working_hours,jsonb,YES
+partners,created_at,timestamp with time zone,YES
+partners,updated_at,timestamp with time zone,YES
+partners,contact_person,text,YES
+partners,email,text,YES
+partners,business_type,text,YES
+partners,description,text,YES
+partners,logo_url,text,YES
+partners,is_active,boolean,YES
+partners,verification_status,text,YES
+partners,rating,numeric,YES
+partners,total_ratings,integer,YES
+partners,metrics,jsonb,YES
+partners_backup,id,uuid,YES
+partners_backup,business_name,text,YES
+partners_backup,phone_number,text,YES
+partners_backup,address_id,uuid,YES
+partners_backup,color,text,YES
+partners_backup,is_facility,boolean,YES
+partners_backup,working_hours,jsonb,YES
+partners_backup,created_at,timestamp with time zone,YES
+partners_backup,updated_at,timestamp with time zone,YES
+partners_backup,contact_person,text,YES
+partners_backup,email,text,YES
+partners_backup,business_type,text,YES
+partners_backup,description,text,YES
+partners_backup,logo_url,text,YES
+partners_backup,is_active,boolean,YES
+partners_backup,verification_status,text,YES
+partners_backup,rating,numeric,YES
+partners_backup,total_ratings,integer,YES
+partners_backup,metrics,jsonb,YES
+payment_gateways,id,uuid,NO
+payment_gateways,name,text,NO
+payment_gateways,provider,text,NO
+payment_gateways,is_active,boolean,YES
+payment_gateways,configuration,jsonb,YES
+payment_gateways,created_at,timestamp with time zone,YES
+payment_gateways,updated_at,timestamp with time zone,YES
+payment_methods,id,uuid,NO
+payment_methods,name,text,NO
+payment_methods,description,text,YES
+payment_methods,is_active,boolean,YES
+payment_methods,created_at,timestamp with time zone,YES
+payment_methods,updated_at,timestamp with time zone,YES
+payment_transactions,id,uuid,NO
+payment_transactions,payment_id,uuid,NO
+payment_transactions,status,text,NO
+payment_transactions,amount,numeric,NO
+payment_transactions,transaction_type,text,NO
+payment_transactions,gateway_response,jsonb,YES
+payment_transactions,created_at,timestamp with time zone,YES
+payments,id,uuid,NO
+payments,parcel_id,uuid,NO
+payments,amount,numeric,NO
+payments,payment_method,text,NO
+payments,payment_status,text,NO
+payments,transaction_id,text,YES
+payments,created_at,timestamp with time zone,YES
+payments,updated_at,timestamp with time zone,YES
+payments,gateway_id,uuid,YES
+payments,gateway_transaction_id,text,YES
+payments,gateway_response,jsonb,YES
+payments,currency,text,YES
+payments,processing_fee,numeric,YES
+payments,payer_id,uuid,YES
+payments,payment_notes,text,YES
+payments,receipt_url,text,YES
+personnel_location_history,id,uuid,NO
+personnel_location_history,personnel_id,uuid,NO
+personnel_location_history,latitude,numeric,NO
+personnel_location_history,longitude,numeric,NO
+personnel_location_history,accuracy,numeric,YES
+personnel_location_history,altitude,numeric,YES
+personnel_location_history,speed,numeric,YES
+personnel_location_history,heading,numeric,YES
+personnel_location_history,battery_level,numeric,YES
+personnel_location_history,created_at,timestamp with time zone,YES
+personnel_shifts,id,uuid,NO
+personnel_shifts,personnel_id,uuid,NO
+personnel_shifts,shift_start,timestamp with time zone,NO
+personnel_shifts,shift_end,timestamp with time zone,YES
+personnel_shifts,status,text,YES
+personnel_shifts,notes,text,YES
+personnel_shifts,created_at,timestamp with time zone,YES
+personnel_shifts,updated_at,timestamp with time zone,YES
+price_calculations,id,uuid,NO
+price_calculations,parcel_id,uuid,NO
+price_calculations,rule_id,uuid,YES
+price_calculations,base_price,numeric,NO
+price_calculations,distance_fee,numeric,YES
+price_calculations,weight_fee,numeric,YES
+price_calculations,size_fee,numeric,YES
+price_calculations,priority_fee,numeric,YES
+price_calculations,special_handling_fee,numeric,YES
+price_calculations,discount_amount,numeric,YES
+price_calculations,discount_code_id,uuid,YES
+price_calculations,subtotal,numeric,NO
+price_calculations,tax_amount,numeric,YES
+price_calculations,tax_rate,numeric,YES
+price_calculations,total_price,numeric,NO
+price_calculations,calculation_notes,jsonb,YES
+price_calculations,created_at,timestamp with time zone,YES
+pricing_categories,id,uuid,NO
+pricing_categories,name,text,NO
+pricing_categories,description,text,YES
+pricing_categories,is_active,boolean,YES
+pricing_categories,created_at,timestamp with time zone,YES
+pricing_categories,updated_at,timestamp with time zone,YES
+pricing_rules,id,uuid,NO
+pricing_rules,category_id,uuid,YES
+pricing_rules,name,text,NO
+pricing_rules,description,text,YES
+pricing_rules,base_price,numeric,NO
+pricing_rules,min_distance,numeric,YES
+pricing_rules,max_distance,numeric,YES
+pricing_rules,price_per_km,numeric,YES
+pricing_rules,min_weight,numeric,YES
+pricing_rules,max_weight,numeric,YES
+pricing_rules,price_per_kg,numeric,YES
+pricing_rules,package_size_factor,jsonb,YES
+pricing_rules,priority_factor,jsonb,YES
+pricing_rules,special_handling_fee,numeric,YES
+pricing_rules,is_active,boolean,YES
+pricing_rules,effective_from,timestamp with time zone,YES
+pricing_rules,effective_to,timestamp with time zone,YES
+pricing_rules,created_at,timestamp with time zone,YES
+pricing_rules,updated_at,timestamp with time zone,YES
+pricing_rules,package_size,text,YES
+profiles,id,uuid,NO
+profiles,email,text,NO
+profiles,first_name,text,YES
+profiles,last_name,text,YES
+profiles,full_name,text,YES
+profiles,phone_number,text,YES
+profiles,role,text,YES
+profiles,created_at,timestamp with time zone,YES
+profiles,updated_at,timestamp with time zone,YES
+profiles,bio,text,YES
+profiles,location,text,YES
+profiles,notifications_enabled,boolean,YES
+profiles,dark_mode,boolean,YES
+profiles,language,text,YES
+profiles,preferred_language,text,YES
+profiles,profile_picture_url,text,YES
+profiles,account_status,text,YES
+profiles,last_login,timestamp with time zone,YES
+profiles,device_tokens,jsonb,YES
+profiles,preferences,jsonb,YES
+profiles,verification_status,jsonb,YES
+profiles,metrics,jsonb,YES
+profiles,default_address_id,uuid,YES
+roles,id,uuid,NO
+roles,name,text,NO
+roles,description,text,YES
+roles,is_system_role,boolean,YES
+roles,permissions,jsonb,YES
+roles,created_at,timestamp with time zone,YES
+roles,updated_at,timestamp with time zone,YES
+spatial_ref_sys,srid,integer,NO
+spatial_ref_sys,auth_name,character varying,YES
+spatial_ref_sys,auth_srid,integer,YES
+spatial_ref_sys,srtext,character varying,YES
+spatial_ref_sys,proj4text,character varying,YES
+support_messages,id,uuid,NO
+support_messages,user_id,uuid,YES
+support_messages,content,text,NO
+support_messages,is_support,boolean,YES
+support_messages,created_at,timestamp with time zone,YES
+temp_partner_locations,id,uuid,YES
+temp_partner_locations,business_name,text,YES
+temp_partner_locations,contact_person,text,YES
+temp_partner_locations,phone_number,text,YES
+temp_partner_locations,email,text,YES
+temp_partner_locations,business_type,text,YES
+temp_partner_locations,description,text,YES
+temp_partner_locations,working_hours,jsonb,YES
+temp_partner_locations,color,text,YES
+temp_partner_locations,is_facility,boolean,YES
+temp_partner_locations,is_active,boolean,YES
+temp_partner_locations,verification_status,text,YES
+temp_partner_locations,rating,numeric,YES
+temp_partner_locations,address_line,text,YES
+temp_partner_locations,street_address,text,YES
+temp_partner_locations,city,text,YES
+temp_partner_locations,state,text,YES
+temp_partner_locations,postal_code,text,YES
+temp_partner_locations,country,text,YES
+temp_partner_locations,latitude,numeric,YES
+temp_partner_locations,longitude,numeric,YES
+temp_partner_locations,address_verified,boolean,YES
+transactions,id,uuid,NO
+transactions,user_id,uuid,YES
+transactions,profile_id,uuid,YES
+transactions,wallet_id,uuid,YES
+transactions,parcel_id,uuid,YES
+transactions,payment_method_id,uuid,YES
+transactions,amount,numeric,NO
+transactions,currency,text,YES
+transactions,transaction_type,text,YES
+transactions,status,text,YES
+transactions,reference_id,text,YES
+transactions,description,text,YES
+transactions,created_at,timestamp with time zone,YES
+transactions,updated_at,timestamp with time zone,YES
+user_activity_log,id,uuid,NO
+user_activity_log,user_id,uuid,NO
+user_activity_log,activity_type,text,NO
+user_activity_log,details,jsonb,YES
+user_activity_log,ip_address,text,YES
+user_activity_log,user_agent,text,YES
+user_activity_log,created_at,timestamp with time zone,YES
+user_roles,id,uuid,NO
+user_roles,user_id,uuid,NO
+user_roles,role_id,uuid,NO
+user_roles,assigned_by,uuid,YES
+user_roles,created_at,timestamp with time zone,YES
+user_roles,updated_at,timestamp with time zone,YES
+user_verifications,id,uuid,NO
+user_verifications,user_id,uuid,NO
+user_verifications,verification_type,text,NO
+user_verifications,status,text,YES
+user_verifications,verification_data,jsonb,YES
+user_verifications,verified_at,timestamp with time zone,YES
+user_verifications,verified_by,uuid,YES
+user_verifications,rejection_reason,text,YES
+user_verifications,expires_at,timestamp with time zone,YES
+user_verifications,created_at,timestamp with time zone,YES
+user_verifications,updated_at,timestamp with time zone,YES
+wallets,id,uuid,NO
+wallets,user_id,uuid,YES
+wallets,profile_id,uuid,YES
+wallets,balance,numeric,YES
+wallets,created_at,timestamp with time zone,YES
+wallets,updated_at,timestamp with time zone,YES

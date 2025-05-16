@@ -1,0 +1,5 @@
+id,parcel_id,amount,payment_method,payment_status,transaction_id,created_at,updated_at,gateway_id,gateway_transaction_id,gateway_response,currency,processing_fee,payer_id,payment_notes,receipt_url
+2c2e4713-7678-e1dc-8801-2bfcb84d0444,1d07f27c-5ccd-c066-0b3d-33a2fe868fbd,93.15,cash,completed,,2025-05-12 20:16:45.649897+00,2025-05-12 20:16:45.649897+00,,,,ETB,0,,,
+75ae89bc-dd31-5463-1796-2041faba84d2,d1d21dab-a82b-dbb4-f096-0b5b7f0e7c1f,184.00,telebirr,completed,,2025-05-12 22:26:45.649897+00,2025-05-12 22:26:45.649897+00,,,,ETB,0,,,
+784b499a-9ce9-e333-4db3-58eec7c807f3,c8a1e951-eaba-7d9c-5325-0d84ab87e1dc,265.65,bank_transfer,completed,,2025-05-14 16:46:45.649897+00,2025-05-14 16:46:45.649897+00,,,,ETB,0,,,
+c977d4b1-7a3f-a592-0b82-11a993fd607a,9f440075-a546-a8d5-d25a-f7555190e2bd,230.00,credit_card,paid,,2025-05-10 22:21:45.649897+00,2025-05-10 22:51:45.649897+00,,,,ETB,0,,,

@@ -31,9 +31,15 @@ import { MaterialIcons, Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { parcelService } from '../../services/parcelService';
 
 // Get screen dimensions for responsive design
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Constants for map heights in the different states
+const MAP_HEIGHT_EXPANDED = SCREEN_HEIGHT * 0.75;
+const MAP_HEIGHT_DEFAULT = SCREEN_HEIGHT * 0.4;
+const MAP_HEIGHT_COLLAPSED = SCREEN_HEIGHT * 0.25;
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -89,12 +95,20 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
-  const [mapExpanded, setMapExpanded] = useState(false);
   const [userName, setUserName] = useState<string>('');
   const [userId, setUserId] = useState<string | null>(null);
-  const mapHeightAnimation = useState(new Animated.Value(SCREEN_HEIGHT * 0.4))[0];
-  const deliveriesOpacityAnimation = useState(new Animated.Value(1))[0];
+  
+  // Enhanced UI state variables
+  const [mapViewState, setMapViewState] = useState('default'); // 'expanded', 'default', 'collapsed'
+  const mapHeightAnimation = useRef(new Animated.Value(MAP_HEIGHT_DEFAULT)).current;
   const mapRef = useRef(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  
+  // Tooltip visibility state
+  const [showTooltip, setShowTooltip] = useState(true);
+  
+  // Scroll position tracking
+  const [scrollPosition, setScrollPosition] = useState(0);
   
   // Add a state variable to track modal position for component rendering decisions
   const [modalPositionValue, setModalPositionValue] = useState(SCREEN_HEIGHT);
@@ -109,6 +123,14 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
   // Add a new state for delivery loading separate from overall loading
   const [isDeliveriesLoading, setIsDeliveriesLoading] = useState(false);
   const [deliveriesError, setDeliveriesError] = useState<string | null>(null);
+  
+  // Add new state for parcel statistics
+  const [parcelStats, setParcelStats] = useState({
+    total: 0,
+    active: 0,
+    delivered: 0,
+    cancelled: 0
+  });
   
   // Listen for changes to the modal position
   useEffect(() => {
@@ -253,12 +275,24 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
     }).start();
   };
   
-  // Update the onRefresh function to use the new loading states
+  // Add a function to fetch parcel statistics
+  const fetchParcelStats = async (userId: string | null) => {
+    if (!userId) return;
+    
+    try {
+      const stats = await parcelService.getParcelStatistics(userId);
+      setParcelStats(stats);
+    } catch (error) {
+      console.error('Error fetching parcel statistics:', error);
+    }
+  };
+
+  // Update onRefresh to also refresh statistics
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
     setDeliveriesError(null);
     try {
-      await Promise.all([fetchPartnerLocations(), fetchActiveDeliveries()]);
+      await Promise.all([fetchPartnerLocations(), fetchActiveDeliveries(), fetchParcelStats(userId)]);
     } catch (error) {
       console.error('Error refreshing data:', error);
       setDeliveriesError('Failed to refresh. Please try again.');
@@ -292,7 +326,7 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
     initializeData();
   }, []);
 
-  // Fetch user data at component mount
+  // Update the useEffect that fetches user data to also get statistics
   useEffect(() => {
     const getUserData = async () => {
       try {
@@ -328,6 +362,9 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
           if (user) {
             console.log('Found authenticated user:', user.id);
             setUserId(user.id);
+            
+            // Fetch parcel statistics after setting user ID
+            fetchParcelStats(user.id);
             
             const { data: profileData } = await supabase
               .from('profiles')
@@ -426,19 +463,59 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
 
       console.log('Fetching deliveries for user ID:', user.id);
       
-      // Fetch deliveries for the user from the 'parcels' table only
+      // Fetch deliveries from the parcels_with_addresses view to get pickup/dropoff point information
       const { data: deliveries, error } = await supabase
-        .from('parcels')
+        .from('parcels_with_addresses')
         .select('*')
         .in('status', ['pending', 'accepted', 'picked_up', 'in_transit'])
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
 
       if (error) {
-        console.error('Error loading deliveries:', JSON.stringify(error));
-        setActiveDeliveries([]);
-        setDeliveriesError(`Error loading deliveries: ${error.message || 'Unknown error'}`);
-        setIsDeliveriesLoading(false);
-        return;
+        console.error('Error loading deliveries from view:', JSON.stringify(error));
+        
+        // Fallback to fetching from the parcels table directly
+        console.log('Falling back to fetching from parcels table');
+        
+        try {
+          const { data: basicDeliveries, error: basicError } = await supabase
+            .from('parcels')
+            .select(`
+              id, tracking_code, package_size, weight, is_fragile, status, 
+              created_at, updated_at, sender_id, receiver_id,
+              pickup_address_id, dropoff_address_id, pickup_point_id, dropoff_point_id,
+              estimated_price
+            `)
+            .in('status', ['pending', 'accepted', 'picked_up', 'in_transit'])
+            .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
+          
+          if (basicError || !basicDeliveries || basicDeliveries.length === 0) {
+            console.error('Basic query also failed:', basicError);
+            setActiveDeliveries([]);
+            setDeliveriesError('No active deliveries found');
+            setIsDeliveriesLoading(false);
+            return;
+          }
+          
+          // Sort deliveries by created_at or updated_at (most recent first)
+          const sortedDeliveries = basicDeliveries.sort((a, b) => {
+            const dateA = new Date(a.updated_at || a.created_at || '');
+            const dateB = new Date(b.updated_at || b.created_at || '');
+            return dateB.getTime() - dateA.getTime();
+          });
+          
+          // Cast the deliveries to the expected type - this is safe because we'll 
+          // handle missing fields in the rendering code
+          setActiveDeliveries(sortedDeliveries as unknown as Parcel[]);
+          setDeliveriesError(null);
+          setIsDeliveriesLoading(false);
+          return;
+        } catch (fallbackError) {
+          console.error('Fallback query failed:', fallbackError);
+          setActiveDeliveries([]);
+          setDeliveriesError(`Error loading deliveries: ${error.message || 'Unknown error'}`);
+          setIsDeliveriesLoading(false);
+          return;
+        }
       }
       
       if (!deliveries || deliveries.length === 0) {
@@ -623,24 +700,53 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
     }
   };
 
-  // Toggle map expansion
-  const toggleMapExpansion = () => {
-    const newState = !mapExpanded;
-    setMapExpanded(newState);
+  // Enhanced toggle function with improved animations
+  const toggleMapView = (newState: 'expanded' | 'default' | 'collapsed') => {
+    if (newState === mapViewState) return;
     
-    // Animate the map height and deliveries opacity
-    Animated.parallel([
-      Animated.timing(mapHeightAnimation, {
-        toValue: newState ? SCREEN_HEIGHT * 0.8 : SCREEN_HEIGHT * 0.4,
-        duration: 300,
-        useNativeDriver: false,
-      }),
-      Animated.timing(deliveriesOpacityAnimation, {
-        toValue: newState ? 0.3 : 1,
-        duration: 300,
-        useNativeDriver: false,
-      })
-    ]).start();
+    let targetHeight;
+    
+    switch(newState) {
+      case 'expanded':
+        targetHeight = MAP_HEIGHT_EXPANDED;
+        // Scroll to top when expanding
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+        break;
+      case 'collapsed':
+        targetHeight = MAP_HEIGHT_COLLAPSED;
+        // Scroll down to show content when collapsing
+        setTimeout(() => {
+          scrollViewRef.current?.scrollTo({ y: MAP_HEIGHT_COLLAPSED + 20, animated: true });
+        }, 100);
+        break;
+      case 'default':
+      default:
+        targetHeight = MAP_HEIGHT_DEFAULT;
+        break;
+    }
+    
+    // Update state with layout animation for smoother transitions
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setMapViewState(newState);
+    
+    // Hide tooltip after first interaction
+    if (showTooltip) {
+      setShowTooltip(false);
+    }
+    
+    // Run map height animation
+    Animated.timing(mapHeightAnimation, {
+      toValue: targetHeight,
+      duration: 300,
+      useNativeDriver: false,
+      easing: Easing.out(Easing.cubic)
+    }).start();
+  };
+  
+  // Compatibility function for existing code
+  const toggleMapExpansion = () => {
+    const newState = mapViewState === 'expanded' ? 'default' : 'expanded';
+    toggleMapView(newState);
   };
 
   // Transform markers for the map with unique styling per partner
@@ -736,10 +842,31 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
     }
   };
 
+  // Handle scroll events to dynamically adjust the UI
+  const handleScroll = (event: { nativeEvent: { contentOffset: { y: number } } }) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    setScrollPosition(offsetY);
+    
+    // Auto-collapse map when scrolling down significantly
+    if (offsetY > 100 && mapViewState === 'default') {
+      toggleMapView('collapsed');
+    }
+    
+    // Auto-expand map when scrolling to top
+    if (offsetY < 10 && mapViewState === 'collapsed') {
+      toggleMapView('default');
+    }
+    
+    // Hide tooltip on scroll
+    if (showTooltip && offsetY > 20) {
+      setShowTooltip(false);
+    }
+  };
+
   // Render the screen
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={styles.loading}>
         <ActivityIndicator size="large" color="#4CAF50" />
         <Text style={styles.loadingText}>Loading MBet-Adera Services...</Text>
       </View>
@@ -750,7 +877,7 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       
-      {/* Header */}
+      {/* Fixed Header */}
       <View style={styles.header}>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>MBet-Adera</Text>
@@ -771,206 +898,357 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
         </TouchableOpacity>
       </View>
       
-      {/* Map Section */}
-      <Animated.View style={[styles.mapContainer, { height: mapHeightAnimation }]}>
-        <LinearGradient
-          colors={['rgba(255,255,255,0.9)', 'rgba(255,255,255,0)']}
-          style={styles.mapHeaderGradient}
-        >
-          <Text style={styles.sectionTitle}>Pickup & Dropoff Locations</Text>
-          <TouchableOpacity 
-            style={styles.expandButton}
-            onPress={toggleMapExpansion}
-          >
-            <MaterialIcons 
-              name={mapExpanded ? "fullscreen-exit" : "fullscreen"} 
-              size={24} 
-              color="#4CAF50" 
+      {/* Main Scrollable Content */}
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
+        scrollEventThrottle={16}
+        onScroll={handleScroll}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            colors={['#4CAF50']}
+            tintColor="#4CAF50"
+          />
+        }
+      >
+        {/* Map Section with Dynamic Height */}
+        <View style={styles.mapWrapper}>
+          <Animated.View style={[styles.mapContainer, { height: mapHeightAnimation }]}>
+            <View style={styles.mapHeader}>
+              <Text style={styles.mapTitle}>Pickup & Dropoff Locations</Text>
+              
+              <View style={styles.mapControls}>
+                {/* Map collapse/expand button with tooltip */}
+                <View style={styles.controlContainer}>
+                  <TouchableOpacity 
+                    style={styles.mapControlButton}
+                    onPress={() => toggleMapView(mapViewState === 'default' ? 'collapsed' : 'default')}
+                  >
+                    <MaterialIcons 
+                      name={mapViewState === 'default' ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
+                      size={28} 
+                      color="#4CAF50" 
+                    />
+                  </TouchableOpacity>
+                  
+                  {/* Tooltip for new users */}
+                  {showTooltip && (
+                    <View style={styles.tooltip}>
+                      <Text style={styles.tooltipText}>
+                        {mapViewState === 'default' ? 'Tap to see more content below' : 'Tap to show more map'}
+                      </Text>
+                      <View style={styles.tooltipArrow} />
+                    </View>
+                  )}
+                </View>
+                
+                {/* Full-screen toggle button */}
+                <TouchableOpacity 
+                  style={styles.mapControlButton}
+                  onPress={toggleMapExpansion}
+                >
+                  <MaterialIcons 
+                    name={mapViewState === 'expanded' ? "fullscreen-exit" : "fullscreen"} 
+                    size={24} 
+                    color="#4CAF50" 
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            <OpenStreetMap
+              ref={mapRef}
+              markers={transformedMarkers}
+              initialLocation={userLocation}
+              onMarkerPress={handleMarkerPress}
+              style={styles.map}
+              showCurrentLocation={true}
+              zoomLevel={13}
             />
-          </TouchableOpacity>
-        </LinearGradient>
-        
-        <OpenStreetMap
-          ref={mapRef}
-          markers={transformedMarkers}
-          initialLocation={userLocation}
-          onMarkerPress={handleMarkerPress}
-          style={styles.map}
-          showCurrentLocation={true}
-          zoomLevel={13}
-        />
-        
-        {/* Native map-recentering button */}
-        {Platform.OS !== 'web' && (
-          <TouchableOpacity 
-            style={styles.mapControlButton}
-            onPress={requestLocationPermission}
-          >
-            <MaterialIcons name="my-location" size={24} color="#4CAF50" />
-          </TouchableOpacity>
-        )}
-      </Animated.View>
-      
-      {/* Active Deliveries Section */}
-      <Animated.View style={[styles.deliveriesSection, { opacity: deliveriesOpacityAnimation }]}>
-        <View style={styles.deliveriesHeader}>
-          <Text style={styles.deliveriesSectionTitle}>Active Deliveries</Text>
-          <TouchableOpacity 
-            style={styles.refreshButton}
-            onPress={onRefresh}
-            disabled={isRefreshing}
-          >
-            <Ionicons 
-              name="refresh" 
-              size={20} 
-              color="#4CAF50" 
-              style={isRefreshing ? styles.refreshingIcon : null}
-            />
-          </TouchableOpacity>
+            
+            {/* My location button */}
+            {Platform.OS !== 'web' && (
+              <TouchableOpacity 
+                style={styles.locationButton}
+                onPress={requestLocationPermission}
+              >
+                <MaterialIcons name="my-location" size={24} color="#4CAF50" />
+              </TouchableOpacity>
+            )}
+            
+            {/* Partially visible content indicator */}
+            {mapViewState === 'default' && (
+              <View style={styles.contentIndicator}>
+                <View style={styles.contentIndicatorBar} />
+                <Text style={styles.contentIndicatorText}>Scroll for deliveries</Text>
+              </View>
+            )}
+          </Animated.View>
         </View>
         
-        <ScrollView 
-          style={styles.deliveriesContainer}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={onRefresh}
-              colors={['#4CAF50']}
-              tintColor="#4CAF50"
-            />
-          }
-        >
-          {activeDeliveries.length === 0 ? (
-            <View style={styles.emptyStateContainer}>
-              {isDeliveriesLoading ? (
-                <>
-                  <ActivityIndicator size="large" color="#4CAF50" style={{ marginBottom: 20 }} />
-                  <Text style={styles.emptyText}>Loading your deliveries...</Text>
-                </>
-              ) : deliveriesError ? (
-                <>
-                  <MaterialIcons name="error-outline" size={80} color="#F44336" />
-                  <Text style={styles.emptyText}>{deliveriesError}</Text>
-                  <TouchableOpacity 
-                    style={styles.retryButton}
-                    onPress={() => fetchActiveDeliveries()}
-                  >
-                    <Text style={styles.retryButtonText}>Retry</Text>
-                  </TouchableOpacity>
-                </>
+        {/* Content Cards Section */}
+        <View style={styles.contentCardsSection}>
+          {/* Quick Actions Card - NEW COMPONENT */}
+          <View style={styles.quickActionsCard}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Quick Actions</Text>
+            </View>
+            
+            <View style={styles.quickActionsContent}>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => navigation.navigate('NewDelivery')}
+              >
+                <View style={[styles.actionIconCircle, {backgroundColor: '#E8F5E9'}]}>
+                  <MaterialIcons name="local-shipping" size={24} color="#4CAF50" />
+                </View>
+                <Text style={styles.actionText}>New Delivery</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => navigation.navigate('ScanQR')}
+              >
+                <View style={[styles.actionIconCircle, {backgroundColor: '#E3F2FD'}]}>
+                  <MaterialIcons name="qr-code-scanner" size={24} color="#2196F3" />
+                </View>
+                <Text style={styles.actionText}>Scan QR</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => navigation.navigate('TrackDelivery')}
+              >
+                <View style={[styles.actionIconCircle, {backgroundColor: '#FFF3E0'}]}>
+                  <MaterialIcons name="search" size={24} color="#FF9800" />
+                </View>
+                <Text style={styles.actionText}>Track</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => navigation.navigate('Support')}
+              >
+                <View style={[styles.actionIconCircle, {backgroundColor: '#F3E5F5'}]}>
+                  <MaterialIcons name="headset-mic" size={24} color="#9C27B0" />
+                </View>
+                <Text style={styles.actionText}>Support</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          {/* Parcel Stats Summary Card */}
+          <View style={styles.statsCard}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Your Parcels Summary</Text>
+              <TouchableOpacity 
+                onPress={onRefresh}
+                disabled={isRefreshing}
+                style={styles.refreshButton}
+              >
+                <Ionicons 
+                  name="refresh" 
+                  size={18} 
+                  color="#4CAF50" 
+                  style={isRefreshing ? styles.refreshingIcon : undefined}
+                />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <View style={[styles.statIconCircle, {backgroundColor: '#E3F2FD'}]}>
+                  <MaterialCommunityIcons name="package-variant" size={22} color="#2196F3" />
+                </View>
+                <Text style={styles.statValue}>{parcelStats.total}</Text>
+                <Text style={styles.statLabel}>Total</Text>
+              </View>
+              
+              <View style={styles.statDivider} />
+              
+              <View style={styles.statItem}>
+                <View style={[styles.statIconCircle, {backgroundColor: '#FFF8E1'}]}>
+                  <MaterialCommunityIcons name="truck-fast-outline" size={22} color="#FFA000" />
+                </View>
+                <Text style={styles.statValue}>{parcelStats.active}</Text>
+                <Text style={styles.statLabel}>Active</Text>
+              </View>
+              
+              <View style={styles.statDivider} />
+              
+              <View style={styles.statItem}>
+                <View style={[styles.statIconCircle, {backgroundColor: '#E8F5E9'}]}>
+                  <MaterialIcons name="check-circle-outline" size={22} color="#4CAF50" />
+                </View>
+                <Text style={styles.statValue}>{parcelStats.delivered}</Text>
+                <Text style={styles.statLabel}>Delivered</Text>
+              </View>
+              
+              <View style={styles.statDivider} />
+              
+              <View style={styles.statItem}>
+                <View style={[styles.statIconCircle, {backgroundColor: '#FFEBEE'}]}>
+                  <MaterialIcons name="cancel" size={22} color="#F44336" />
+                </View>
+                <Text style={styles.statValue}>{parcelStats.cancelled}</Text>
+                <Text style={styles.statLabel}>Cancelled</Text>
+              </View>
+            </View>
+          </View>
+          
+          {/* Active Deliveries Card */}
+          <View style={styles.deliveriesCard}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Active Deliveries</Text>
+              <TouchableOpacity 
+                style={styles.refreshButton}
+                onPress={onRefresh}
+                disabled={isRefreshing}
+              >
+                <Ionicons 
+                  name="refresh" 
+                  size={20} 
+                  color="#4CAF50" 
+                  style={isRefreshing ? styles.refreshingIcon : null}
+                />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.deliveriesContentContainer}>
+              {activeDeliveries.length === 0 ? (
+                <View style={styles.emptyStateContainer}>
+                  {isDeliveriesLoading ? (
+                    <>
+                      <ActivityIndicator size="large" color="#4CAF50" style={{ marginBottom: 20 }} />
+                      <Text style={styles.emptyText}>Loading your deliveries...</Text>
+                    </>
+                  ) : deliveriesError ? (
+                    <>
+                      <MaterialIcons name="error-outline" size={80} color="#F44336" />
+                      <Text style={styles.emptyText}>{deliveriesError}</Text>
+                      <TouchableOpacity 
+                        style={styles.retryButton}
+                        onPress={() => fetchActiveDeliveries()}
+                      >
+                        <Text style={styles.retryButtonText}>Retry</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      <MaterialIcons name="inventory" size={80} color="#CCCCCC" />
+                      <Text style={styles.emptyText}>No active deliveries</Text>
+                      <Text style={styles.emptySubtext}>
+                        {userId ? 'Create a new delivery to get started' : 'Sign in to view your deliveries'}
+                      </Text>
+                    </>
+                  )}
+                </View>
               ) : (
-                <>
-                  <MaterialIcons name="inventory" size={80} color="#CCCCCC" />
-                  <Text style={styles.emptyText}>No active deliveries</Text>
-                  <Text style={styles.emptySubtext}>
-                    {userId ? 'Create a new delivery to get started' : 'Sign in to view your deliveries'}
-                  </Text>
-                </>
+                activeDeliveries.map((delivery) => (
+                  <TouchableOpacity
+                    key={delivery.id}
+                    style={styles.deliveryCard}
+                    onPress={() => navigation.navigate('DeliveryDetails', { id: delivery.id })}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.deliveryHeader}>
+                      <Text style={styles.deliveryId}>#{delivery.tracking_code}</Text>
+                      <View style={[styles.statusBadge, getStatusStyle(delivery.status)]}>
+                        {getStatusIcon(delivery.status)}
+                        <Text style={styles.statusText}>{delivery.status_display || delivery.status}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.deliveryDetails}>
+                      {delivery.package_size && (
+                        <View style={styles.packageInfo}>
+                          <Text style={styles.packageSize}>
+                            {delivery.package_size.charAt(0).toUpperCase() + delivery.package_size.slice(1)} package
+                          </Text>
+                          {delivery.is_fragile && (
+                            <View style={styles.fragileTag}>
+                              <FontAwesome5 name="glass-whiskey" size={10} color="#fff" style={{marginRight: 4}} />
+                              <Text style={styles.fragileText}>Fragile</Text>
+                            </View>
+                          )}
+                        </View>
+                      )}
+                      
+                      {delivery.package_description && (
+                        <Text style={styles.packageDescription} numberOfLines={1} ellipsizeMode="tail">
+                          {delivery.package_description}
+                        </Text>
+                      )}
+                      
+                      <View style={styles.userRoleContainer}>
+                        <Text style={styles.userRoleText}>
+                          {(() => {
+                            try {
+                              // Check both camelCase and snake_case properties
+                              const isSender = 
+                                (delivery.sender_id && delivery.sender_id === userId) || 
+                                (delivery.senderId && delivery.senderId === userId);
+                              
+                              return isSender ? 'You are the sender' : 'You are the recipient';
+                            } catch (e) {
+                              // Fallback in case of any errors
+                              return 'Your delivery';
+                            }
+                          })()}
+                        </Text>
+                      </View>
+                      
+                      {delivery.estimated_price && (
+                        <Text style={styles.priceText}>
+                          {delivery.formatted_price || formatPrice(delivery.estimated_price)}
+                          {delivery.formatted_distance && ` • ${delivery.formatted_distance}`}
+                        </Text>
+                      )}
+                    </View>
+                    
+                    <View style={styles.addressContainer}>
+                      <View style={styles.addressItem}>
+                        <View style={styles.addressHeader}>
+                          <MaterialIcons name="location-on" size={16} color="#4CAF50" style={styles.addressIcon} />
+                          <Text style={styles.addressLabel}>From:</Text>
+                          {delivery.pickup_business_name && (
+                            <View style={[styles.partnerTag, {backgroundColor: delivery.pickup_partner_color || '#4CAF50'}]}>
+                              <Text style={styles.partnerText}>{delivery.pickup_business_name}</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.addressText}>{delivery.pickup_address || 'N/A'}</Text>
+                      </View>
+                      
+                      <View style={styles.routeContainer}>
+                        <View style={styles.routeLine} />
+                        <MaterialIcons name="arrow-downward" size={16} color="#999" />
+                      </View>
+                      
+                      <View style={styles.addressItem}>
+                        <View style={styles.addressHeader}>
+                          <MaterialIcons name="flag" size={16} color="#F44336" style={styles.addressIcon} />
+                          <Text style={styles.addressLabel}>To:</Text>
+                          {delivery.dropoff_business_name && (
+                            <View style={[styles.partnerTag, {backgroundColor: delivery.dropoff_partner_color || '#2196F3'}]}>
+                              <Text style={styles.partnerText}>{delivery.dropoff_business_name}</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.addressText}>{delivery.dropoff_address || 'N/A'}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))
               )}
             </View>
-          ) : (
-            activeDeliveries.map((delivery) => (
-              <TouchableOpacity
-                key={delivery.id}
-                style={styles.deliveryCard}
-                onPress={() => navigation.navigate('DeliveryDetails', { id: delivery.id })}
-                activeOpacity={0.7}
-              >
-                <View style={styles.deliveryHeader}>
-                  <Text style={styles.deliveryId}>#{delivery.tracking_code}</Text>
-                  <View style={[styles.statusBadge, getStatusStyle(delivery.status)]}>
-                    {getStatusIcon(delivery.status)}
-                    <Text style={styles.statusText}>{delivery.status_display || delivery.status}</Text>
-                  </View>
-                </View>
-                
-                <View style={styles.deliveryDetails}>
-                  {delivery.package_size && (
-                    <View style={styles.packageInfo}>
-                      <Text style={styles.packageSize}>
-                        {delivery.package_size.charAt(0).toUpperCase() + delivery.package_size.slice(1)} package
-                      </Text>
-                      {delivery.is_fragile && (
-                        <View style={styles.fragileTag}>
-                          <FontAwesome5 name="glass-whiskey" size={10} color="#fff" style={{marginRight: 4}} />
-                          <Text style={styles.fragileText}>Fragile</Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
-                  
-                  {delivery.package_description && (
-                    <Text style={styles.packageDescription} numberOfLines={1} ellipsizeMode="tail">
-                      {delivery.package_description}
-                    </Text>
-                  )}
-                  
-                  <View style={styles.userRoleContainer}>
-                    <Text style={styles.userRoleText}>
-                      {(() => {
-                        try {
-                          // Check both camelCase and snake_case properties
-                          const isSender = 
-                            (delivery.sender_id && delivery.sender_id === userId) || 
-                            (delivery.senderId && delivery.senderId === userId);
-                          
-                          return isSender ? 'You are the sender' : 'You are the recipient';
-                        } catch (e) {
-                          // Fallback in case of any errors
-                          return 'Your delivery';
-                        }
-                      })()}
-                    </Text>
-                  </View>
-                  
-                  {delivery.estimated_price && (
-                    <Text style={styles.priceText}>
-                      {delivery.formatted_price || formatPrice(delivery.estimated_price)}
-                      {delivery.formatted_distance && ` • ${delivery.formatted_distance}`}
-                    </Text>
-                  )}
-                </View>
-                
-                <View style={styles.addressContainer}>
-                  <View style={styles.addressItem}>
-                    <View style={styles.addressHeader}>
-                      <MaterialIcons name="location-on" size={16} color="#4CAF50" style={styles.addressIcon} />
-                      <Text style={styles.addressLabel}>From:</Text>
-                      {delivery.pickup_business_name && (
-                        <View style={[styles.partnerTag, {backgroundColor: delivery.pickup_partner_color || '#4CAF50'}]}>
-                          <Text style={styles.partnerText}>{delivery.pickup_business_name}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.addressText}>{delivery.pickup_address || 'N/A'}</Text>
-                  </View>
-                  
-                  <View style={styles.routeContainer}>
-                    <View style={styles.routeLine} />
-                    <MaterialIcons name="arrow-downward" size={16} color="#999" />
-                  </View>
-                  
-                  <View style={styles.addressItem}>
-                    <View style={styles.addressHeader}>
-                      <MaterialIcons name="flag" size={16} color="#F44336" style={styles.addressIcon} />
-                      <Text style={styles.addressLabel}>To:</Text>
-                      {delivery.dropoff_business_name && (
-                        <View style={[styles.partnerTag, {backgroundColor: delivery.dropoff_partner_color || '#2196F3'}]}>
-                          <Text style={styles.partnerText}>{delivery.dropoff_business_name}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.addressText}>{delivery.dropoff_address || 'N/A'}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
-          
-          {/* Add some bottom padding for better scrolling */}
-          <View style={styles.scrollPadding} />
-        </ScrollView>
-      </Animated.View>
+          </View>
+        </View>
+      </ScrollView>
       
       {/* Partner details modal - replace the existing Modal component with this animated version */}
       {showPartnerDetails && (
@@ -1267,18 +1545,13 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9F9F9',
+    backgroundColor: '#F5F7FA',
   },
-  loadingContainer: {
+  scrollContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
   },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#555',
+  scrollContent: {
+    flexGrow: 1,
   },
   header: {
     flexDirection: 'row',
@@ -1327,63 +1600,238 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 80,
   },
+  mapWrapper: {
+    width: '100%',
+  },
   mapContainer: {
     width: '100%',
     position: 'relative',
     backgroundColor: '#eee',
     overflow: 'hidden',
   },
-  map: {
-    flex: 1,
-  },
-  mapHeaderGradient: {
+  mapHeader: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 60,
+    zIndex: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    zIndex: 5,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255,255,255,0.9)',
   },
-  sectionTitle: {
+  mapTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#212121',
   },
-  expandButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  mapControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  controlContainer: {
+    position: 'relative',
+  },
+  mapControlButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.95)',
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
-    elevation: 2,
+    elevation: 3,
   },
-  deliveriesSection: {
+  tooltip: {
+    position: 'absolute',
+    top: -40,
+    left: -70,
+    width: 180,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  tooltipText: {
+    color: 'white',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  tooltipArrow: {
+    position: 'absolute',
+    bottom: -8,
+    right: 20,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderTopWidth: 8,
+    borderStyle: 'solid',
+    backgroundColor: 'transparent',
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: 'rgba(0,0,0,0.75)',
+  },
+  map: {
     flex: 1,
-    backgroundColor: '#F9F9F9',
   },
-  deliveriesHeader: {
+  locationButton: {
+    position: 'absolute',
+    right: 16,
+    bottom: 70,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  contentIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.8)',
+  },
+  contentIndicatorBar: {
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#4CAF50',
+    marginBottom: 4,
+  },
+  contentIndicatorText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  contentCardsSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+  // Quick Actions Card
+  quickActionsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginTop: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+    overflow: 'hidden',
+  },
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
-  deliveriesSectionTitle: {
+  cardTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#212121',
+  },
+  quickActionsContent: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+    padding: 16,
+  },
+  actionButton: {
+    width: Platform.OS === 'web' ? '23%' : '25%',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  actionIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  actionText: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+  },
+  // Stats Card
+  statsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+    overflow: 'hidden',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+  },
+  statItem: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    flex: 1,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#e0e0e0',
+  },
+  statIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#212121',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#666',
+  },
+  // Deliveries Card
+  deliveriesCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+    overflow: 'hidden',
+  },
+  deliveriesContentContainer: {
+    padding: 16,
   },
   refreshButton: {
     padding: 5,
@@ -1391,18 +1839,11 @@ const styles = StyleSheet.create({
   refreshingIcon: {
     transform: [{ rotate: '45deg' }],
   },
-  deliveriesContainer: {
-    flex: 1,
-    padding: 16,
-  },
-  scrollPadding: {
-    height: 80, // Space for the FAB
-  },
+  // Empty state
   emptyStateContainer: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
+    justifyContent: 'center',
+    paddingVertical: 32,
   },
   emptyText: {
     fontSize: 18,
@@ -1413,7 +1854,20 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 14,
     color: '#9E9E9E',
+    textAlign: 'center',
   },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#4CAF50',
+    borderRadius: 20,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  // Delivery Card
   deliveryCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -1424,6 +1878,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 3,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
   },
   deliveryHeader: {
     flexDirection: 'row',
@@ -1656,10 +2112,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   partnerDetailsScrollView: {
-    maxHeight: 320,
+    maxHeight: 350,
   },
   partnerDetailsContainer: {
     padding: 16,
+    paddingBottom: 24,
   },
   descriptionContainer: {
     backgroundColor: '#f9f9f9',
@@ -1724,17 +2181,19 @@ const styles = StyleSheet.create({
   dayHoursRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    alignItems: 'flex-start',
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
+    minHeight: 44,
   },
   todayHoursRow: {
     backgroundColor: 'rgba(76, 175, 80, 0.1)',
     borderRadius: 8,
     paddingHorizontal: 12,
     marginHorizontal: -8,
-    marginVertical: 4,
-    paddingVertical: 12,
+    marginVertical: 6,
+    paddingVertical: 14,
     borderBottomWidth: 0,
     borderWidth: 1,
     borderColor: 'rgba(76, 175, 80, 0.2)',
@@ -1743,6 +2202,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     minWidth: 110,
+    paddingRight: 8,
   },
   todayIndicator: {
     width: 8,
@@ -1765,11 +2225,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
+    flexWrap: 'wrap',
+    paddingLeft: 4,
   },
   hoursValue: {
     fontSize: 14,
     color: '#444',
     textAlign: 'right',
+    flexShrink: 1,
   },
   openNowText: {
     color: '#4CAF50',
@@ -1784,6 +2247,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
     marginLeft: 8,
+    marginTop: 2,
   },
   openNowBadgeText: {
     color: 'white',
@@ -1834,8 +2298,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   facilityNoticeContainer: {
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: 20,
+    marginBottom: 16,
     padding: 16,
     backgroundColor: '#FFF9C4',
     borderRadius: 8,
@@ -1880,48 +2344,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  mapControlButton: {
-    position: 'absolute',
-    right: 16,
-    bottom: 70,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'white',
+  // Loading state
+  loading: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.27,
-    shadowRadius: 4.65,
-    elevation: 6,
+    backgroundColor: '#FFFFFF',
   },
-  businessTypeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 16,
-    alignSelf: 'flex-start',
-    marginTop: 4,
-  },
-  businessTypeBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 5,
-  },
-  openDot: {
-    backgroundColor: '#4CAF50',
-  },
-  closedDot: {
-    backgroundColor: '#F44336',
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#555',
   },
   userRoleContainer: {
     backgroundColor: '#E3F2FD',
@@ -1936,17 +2369,18 @@ const styles = StyleSheet.create({
     color: '#1976D2',
     fontWeight: '500',
   },
-  retryButton: {
-    marginTop: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 5,
+  },
+  openDot: {
     backgroundColor: '#4CAF50',
-    borderRadius: 20,
   },
-  retryButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
+  closedDot: {
+    backgroundColor: '#F44336',
   },
-});
+} as const);
 
 export default HomeScreen; 

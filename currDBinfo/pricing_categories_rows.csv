@@ -1,0 +1,13 @@
+id,name,description,is_active,created_at,updated_at
+1e7ba298-7c38-ca01-b2b6-75d6947f1072,Express,Express delivery pricing,true,2025-05-11 20:31:47.361059+00,2025-05-11 20:31:47.361059+00
+2e90b7f5-7c09-7f50-2c6b-f9e4ce643309,Fragile Items,Pricing for items requiring special handling,true,2025-05-11 20:31:47.361059+00,2025-05-11 20:31:47.361059+00
+358f2acb-b19f-cc19-ceb4-3aa2d03f3f12,Standard,Standard pricing for regular parcels,true,2025-05-11 19:33:27.891275+00,2025-05-11 19:33:27.891275+00
+3ebe3058-a15e-5907-4445-b89f76e700eb,Standard,Standard delivery pricing for normal parcels,true,2025-05-14 21:40:17.829738+00,2025-05-14 21:40:17.829738+00
+583c1dc9-3c09-a78a-04ea-52e9d0a5a2ac,Express,Express delivery pricing,true,2025-05-11 19:33:27.891275+00,2025-05-11 19:33:27.891275+00
+6c6a8569-0026-9135-259b-fbb56e464d4a,Heavy Items,Pricing for heavy items over 10kg,true,2025-05-11 19:33:27.891275+00,2025-05-11 19:33:27.891275+00
+cd8c1b9f-776b-de68-3d33-aaf2d814cfcf,Fragile Items,Pricing for items requiring special handling,true,2025-05-11 19:33:27.891275+00,2025-05-11 19:33:27.891275+00
+ce88d1cc-0c42-f0bf-b7ae-199c0b993a7e,Next Day,Next-day delivery with guaranteed timing,true,2025-05-14 21:40:17.829738+00,2025-05-14 21:40:17.829738+00
+d105052e-b548-967d-4109-6eb62b8c20d4,Heavy Items,Pricing for heavy items over 10kg,true,2025-05-11 20:31:47.361059+00,2025-05-11 20:31:47.361059+00
+d71d315b-b754-fa13-e2e4-28d845683237,Express,Express delivery with priority handling,true,2025-05-14 21:40:17.829738+00,2025-05-14 21:40:17.829738+00
+d7d240fa-54c8-8490-de96-5d93ca8c907e,Standard,Standard pricing for regular parcels,true,2025-05-11 20:31:47.361059+00,2025-05-11 20:31:47.361059+00
+eace8b04-0e0c-3902-513e-89a2a12a5d02,Same Day,Same-day delivery for urgent items,true,2025-05-14 21:40:17.829738+00,2025-05-14 21:40:17.829738+00

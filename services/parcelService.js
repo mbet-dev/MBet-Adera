@@ -566,103 +566,43 @@ export const parcelService = {
     console.log(`[parcelService.getActiveDeliveries] Fetching active deliveries for user: ${userId}`);
     
     try {
-      // Get only the IDs first to avoid type issues
-      const { data: activeIds, error: idError } = await supabase
-        .from('parcels')
-        .select('id')
+      // Get active deliveries directly from parcels_with_addresses view
+      const { data: activeDeliveries, error } = await supabase
+        .from('parcels_with_addresses')
+        .select('*')
         .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-        .in('status', ['pending', 'confirmed', 'picked_up', 'in_transit'])
+        .in('status', ['pending', 'accepted', 'picked_up', 'in_transit'])
         .order('created_at', { ascending: false });
       
-      if (idError) {
-        console.error('Error fetching active delivery IDs:', idError);
-        return [];
+      if (error) {
+        console.error('Error fetching active deliveries from view:', error);
+        
+        // Fallback to separate queries if the view failed
+        console.log('Falling back to separate queries for active deliveries');
+        
+        // Just get the basic parcel info
+        const { data: basicParcels, error: basicError } = await supabase
+          .from('parcels')
+          .select('*')
+          .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+          .in('status', ['pending', 'accepted', 'picked_up', 'in_transit'])
+          .order('created_at', { ascending: false });
+          
+        if (basicError || !basicParcels) {
+          console.error('Fallback also failed:', basicError);
+          return [];
+        }
+        
+        return basicParcels;
       }
       
-      if (!activeIds || activeIds.length === 0) {
+      if (!activeDeliveries || activeDeliveries.length === 0) {
         console.log('No active deliveries found');
         return [];
       }
       
-      console.log(`Found ${activeIds.length} active delivery IDs`);
-      
-      // Now fetch each delivery separately
-      const parcelsWithAddresses = await Promise.all(activeIds.map(async ({ id }) => {
-        try {
-          // Get basic parcel data
-          const { data: parcel, error: parcelError } = await supabase
-            .from('parcels')
-            .select('id, tracking_code, package_size, status, is_fragile, weight, price, package_description, pickup_address_id, dropoff_address_id, sender_id, receiver_id, created_at, updated_at')
-            .eq('id', id)
-            .single();
-          
-          if (parcelError || !parcel) {
-            console.warn(`Error or no data fetching active parcel ${id}:`, parcelError);
-            return null;
-          }
-          
-          // Fetch pickup address if present
-          let pickupAddress = null;
-          if (parcel.pickup_address_id) {
-            try {
-              const { data: pickupData } = await supabase
-                .from('addresses')
-                .select('id, address_line, city, latitude, longitude, created_at, updated_at')
-                .eq('id', parcel.pickup_address_id)
-                .single();
-              
-              if (pickupData) {
-                pickupAddress = {
-                  ...pickupData,
-                  partner_id: userId // Use user ID as default partner_id
-                };
-              }
-            } catch (addrError) {
-              console.warn(`Error fetching pickup address ${parcel.pickup_address_id}:`, addrError);
-            }
-          }
-          
-          // Fetch dropoff address if present
-          let dropoffAddress = null;
-          if (parcel.dropoff_address_id) {
-            try {
-              const { data: dropoffData } = await supabase
-                .from('addresses')
-                .select('id, address_line, city, latitude, longitude, created_at, updated_at')
-                .eq('id', parcel.dropoff_address_id)
-                .single();
-              
-              if (dropoffData) {
-                dropoffAddress = {
-                  ...dropoffData,
-                  partner_id: userId // Use user ID as default partner_id
-                };
-              }
-            } catch (addrError) {
-              console.warn(`Error fetching dropoff address ${parcel.dropoff_address_id}:`, addrError);
-            }
-          }
-          
-    return {
-            ...parcel,
-            pickup_address: pickupAddress,
-            dropoff_address: dropoffAddress,
-            // Ensure consistent types for these fields
-            tracking_code: parcel.tracking_code || '',
-            status: parcel.status || 'pending',
-            package_size: parcel.package_size || ''
-          };
-        } catch (error) {
-          console.warn(`Error processing active parcel ${id}:`, error);
-          return null;
-        }
-      }));
-      
-      // Filter out nulls from failed fetches
-      const validParcels = parcelsWithAddresses.filter(p => p !== null);
-      console.log(`Successfully processed ${validParcels.length} active deliveries`);
-      
-      return validParcels;
+      console.log(`Found ${activeDeliveries.length} active deliveries`);
+      return activeDeliveries;
     } catch (error) {
       console.error('Error in getActiveDeliveries:', error);
       return [];

@@ -1,0 +1,6 @@
+id,name,description,is_system_role,permissions,created_at,updated_at
+3038e337-d37a-45bd-8b63-cf069ebfe880,Driver,Delivery personnel who can deliver parcels,true,"[""view_assigned_parcels"", ""update_parcel_status"", ""manage_profile"", ""update_location""]",2025-05-11 19:34:50.878532+00,2025-05-11 19:34:50.878532+00
+53861bd2-44f1-b3df-4ae3-fa61873ac8a2,Customer,Regular user who can send and receive parcels,true,"[""create_parcel"", ""view_own_parcels"", ""track_parcels"", ""manage_profile""]",2025-05-11 19:34:50.878532+00,2025-05-11 19:34:50.878532+00
+68a72d51-321e-5df0-9042-a12b9f241ec8,Partner,System Partner role,true,[],2025-05-13 16:31:26.154263+00,2025-05-13 16:31:26.154263+00
+a42966a5-eb96-1951-0f5e-ba6b0bea1a63,Staff,Internal staff who can manage parcels and support,true,"[""view_all_parcels"", ""manage_parcels"", ""support_chat"", ""manage_partners""]",2025-05-11 19:34:50.878532+00,2025-05-11 19:34:50.878532+00
+f23fd955-2115-d8c8-34c8-81937a48c08a,Admin,System administrator with full access,true,"[""*""]",2025-05-11 19:34:50.878532+00,2025-05-11 19:34:50.878532+00

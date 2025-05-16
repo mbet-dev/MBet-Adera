@@ -1,0 +1,7 @@
+id,parcel_id,status,location_id,latitude,longitude,courier_id,notes,created_at
+0ea10f6c-bdc2-bd82-056f-0584402c5fae,437cbf7c-2040-1506-a3f7-cc8f4a96b79e,out_for_delivery,,,,,Status changed to out_for_delivery,2025-05-14 22:16:45.649897+00
+0f76f17f-8aa6-9ccb-abd4-e69c622d0a19,de2fe0e3-2afc-8c58-884c-0765b4250faa,created,,,,,Status changed to created,2025-05-14 22:16:45.649897+00
+1387b9a7-deac-81dc-57e7-15726f8fade8,d1d21dab-a82b-dbb4-f096-0b5b7f0e7c1f,failed_delivery,,,,,Status changed to failed_delivery,2025-05-14 22:16:45.649897+00
+56f109cc-f163-844a-caf1-4250c92ed0b9,1d07f27c-5ccd-c066-0b3d-33a2fe868fbd,delivered,,,,,Status changed to delivered,2025-05-14 22:16:45.649897+00
+dadd1681-9538-0fea-ed27-9496c4029134,c8a1e951-eaba-7d9c-5325-0d84ab87e1dc,in_transit,,,,,Status changed to in_transit,2025-05-14 22:16:45.649897+00
+f7b54166-0e5f-6eb1-fb71-69faefee340b,9f440075-a546-a8d5-d25a-f7555190e2bd,canceled,,,,,Status changed to canceled,2025-05-14 22:16:45.649897+00
