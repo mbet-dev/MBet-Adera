@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.4.1 - Stable Release (Partner Location Updates)
+
+### Partner System Improvements:
+- Enhanced partner location management
+- Fixed issues with partner address relationships
+- Improved data structure for partner locations
+- Added better validation for location data
+- Restructured database queries for partners
+- Optimized partner-related API endpoints
+
 ## v4.2.0 - New Stable Version (Authentication Overhaul)
 
 ### Authentication Improvements:
