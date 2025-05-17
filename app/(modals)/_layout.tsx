@@ -1,25 +1,13 @@
 import { Stack } from 'expo-router';
 
-export default function ModalsLayout() {
+export default function ModalLayout() {
   return (
     <Stack
       screenOptions={{
-        headerShown: true,
+        headerShown: false,
         presentation: 'modal',
         animation: 'slide_from_bottom',
-        headerTintColor: '#ffffff',
-        headerStyle: {
-          backgroundColor: '#1976D2',
-        },
       }}
-    >
-      <Stack.Screen
-        name="terms"
-        options={{
-          headerTitle: 'Terms & Conditions',
-          headerShown: true,
-        }}
-      />
-    </Stack>
+    />
   );
 } 

@@ -1,4 +1,4 @@
-import { useEffect, useState, Component, ErrorInfo, ReactNode, useRef } from 'react';
+import React, { useEffect, useState, Component, ErrorInfo, ReactNode, useRef } from 'react';
 import { Stack, useRouter, useSegments, SplashScreen } from 'expo-router';
 import { AuthProvider } from '../src/context/AuthContext';
 import { Provider as PaperProvider } from 'react-native-paper';
@@ -9,6 +9,8 @@ import { SessionProvider, useSession } from '../components/SessionProvider';
 import { storage } from '../src/utils/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { HAS_ACTIVE_SESSION_KEY } from '../lib/supabase';
+import { LanguageProvider, useLanguage } from '../src/context/LanguageContext';
+import '../src/i18n'; // Import i18n configuration
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -70,6 +72,15 @@ class CustomErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
+// Wrap the navigation with the language context to force re-renders on language change
+function AppWithLanguage({ children }: { children: ReactNode }) {
+  const { refreshKey } = useLanguage();
+  
+  // This component will re-render whenever refreshKey changes
+  // forcing the entire app to re-render when language changes
+  return <>{children}</>;
+}
+
 function RootLayoutNav() {
   const { session, loading, manuallyRestoreSession } = useSession();
   const segments = useSegments();
@@ -118,7 +129,9 @@ function RootLayoutNav() {
   }, [session, lastActiveTime]);
 
   useEffect(() => {
-    if (loading || checkedOnboarding) return;
+    if (loading || !segments || segments.length === 0) return;
+
+    if (checkedOnboarding) return;
 
     const checkOnboarding = async () => {
       try {
@@ -187,7 +200,7 @@ function RootLayoutNav() {
     };
     
     checkOnboarding();
-  }, [session, loading, segments, checkedOnboarding, manuallyRestoreSession]);
+  }, [session, loading, segments, manuallyRestoreSession]);
 
   useEffect(() => {
     if (!loading) {
@@ -197,32 +210,36 @@ function RootLayoutNav() {
 
   return (
     <CustomErrorBoundary>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: 'slide_from_right',
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="auth" options={{ headerShown: false }} />
-        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-        <Stack.Screen name="(modals)" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="tracking" options={{ headerShown: false }} />
-      </Stack>
+      <AppWithLanguage>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: 'slide_from_right',
+          }}
+        >
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="auth" options={{ headerShown: false }} />
+          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+          <Stack.Screen name="(modals)" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="tracking" options={{ headerShown: false }} />
+        </Stack>
+      </AppWithLanguage>
     </CustomErrorBoundary>
   );
 }
 
 export default function RootLayout() {
   return (
-    <SessionProvider>
-      <SafeAreaProvider>
-        <PaperProvider theme={theme}>
-          <AuthProvider>
-            <RootLayoutNav />
-          </AuthProvider>
-        </PaperProvider>
-      </SafeAreaProvider>
-    </SessionProvider>
+    <LanguageProvider>
+      <SessionProvider>
+        <SafeAreaProvider>
+          <PaperProvider theme={theme}>
+            <AuthProvider>
+              <RootLayoutNav />
+            </AuthProvider>
+          </PaperProvider>
+        </SafeAreaProvider>
+      </SessionProvider>
+    </LanguageProvider>
   );
 }

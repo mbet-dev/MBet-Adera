@@ -33,6 +33,7 @@ import errorHandler from '../../../src/utils/errorHandler';
 import DashboardCard from '../../../components/profile/DashboardCard';
 import SettingsListItem from '../../../components/profile/SettingsListItem';
 import ProgressRing from '../../../components/profile/ProgressRing';
+import LanguageSettingsItem from '../../../components/profile/LanguageSettingsItem';
 
 // Types
 interface UserProfile {
@@ -638,6 +639,8 @@ export default function EnhancedProfileScreen() {
             toggleValue={preferences.darkMode}
             onToggleChange={() => handleTogglePreference('darkMode')}
           />
+          
+          <LanguageSettingsItem />
           
           <SettingsListItem
             icon="notifications"

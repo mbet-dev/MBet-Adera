@@ -32,6 +32,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { parcelService } from '../../services/parcelService';
+import { router } from 'expo-router';
+import { Colors } from '../../constants/Colors';
 
 // Get screen dimensions for responsive design
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -101,7 +103,7 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
   // Enhanced UI state variables
   const [mapViewState, setMapViewState] = useState('default'); // 'expanded', 'default', 'collapsed'
   const mapHeightAnimation = useRef(new Animated.Value(MAP_HEIGHT_DEFAULT)).current;
-  const mapRef = useRef(null);
+  const mapRef = useRef<{ centerOnLocation: (location: { latitude: number; longitude: number }) => void }>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   
   // Tooltip visibility state
@@ -1011,7 +1013,39 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
               
               <TouchableOpacity 
                 style={styles.actionButton}
-                onPress={() => navigation.navigate('ScanQR')}
+                onPress={() => {
+                  try {
+                    // Check if barcode scanner module is available
+                    const hasBarcodeScanner = (() => {
+                      try {
+                        return !!require('expo-barcode-scanner');
+                      } catch (err) {
+                        return false;
+                      }
+                    })();
+                    
+                    if (!hasBarcodeScanner) {
+                      Alert.alert(
+                        "Scanner Not Available in Expo Go",
+                        "QR scanner requires a development build to access your device's camera. This limitation is due to how native modules work with Expo.",
+                        [
+                          { 
+                            text: "Learn About Dev Builds", 
+                            onPress: () => Linking.openURL('https://docs.expo.dev/develop/development-builds/create-a-build/') 
+                          },
+                          { text: "OK" }
+                        ]
+                      );
+                      return;
+                    }
+                    
+                    // Navigate to the scan modal
+                    router.push('/scan?navigateOnScan=true');
+                  } catch (err) {
+                    console.error('Error navigating to scanner:', err);
+                    Alert.alert('Error', 'Could not open the scanner. Please try again.');
+                  }
+                }}
               >
                 <View style={[styles.actionIconCircle, {backgroundColor: '#E3F2FD'}]}>
                   <MaterialIcons name="qr-code-scanner" size={24} color="#2196F3" />
@@ -1152,7 +1186,7 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
                   <TouchableOpacity
                     key={delivery.id}
                     style={styles.deliveryCard}
-                    onPress={() => navigation.navigate('DeliveryDetails', { id: delivery.id })}
+                    onPress={() => router.push(`/orders/${delivery.id}`)}
                     activeOpacity={0.7}
                   >
                     <View style={styles.deliveryHeader}>
