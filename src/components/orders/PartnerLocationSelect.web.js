@@ -15,8 +15,9 @@ export const PartnerLocationSelect = ({ label, onSelect, selectedPartner, type =
             try {
                 setLoading(true);
                 const { data, error } = await supabase
-                    .from('partners')
-                    .select('*');
+                    .from('partner_locations')
+                    .select('*')
+                    .eq('is_active', true);
                 
                 if (error) {
                     throw error;
@@ -24,24 +25,19 @@ export const PartnerLocationSelect = ({ label, onSelect, selectedPartner, type =
                 
                 // Format partners with location data from the database
                 const formattedPartners = data
-                    .filter(partner => partner.business_name !== 'MBet-Adera Sorting Facility Center')
-                    .map(partner => {
-                        // Get location data from partner's location field
-                        const locationData = partner.location || {};
-                        const latitude = locationData.latitude;
-                        const longitude = locationData.longitude;
-                        
+                    .filter(location => location.business_name !== 'MBet-Adera Sorting Facility Center')
+                    .map(location => {
                         return {
-                            id: partner.id,
-                            name: partner.business_name,
-                            businessName: partner.business_name,
-                            address: locationData.address || 'Addis Ababa, Ethiopia',
-                            coordinates: latitude && longitude ? {
-                                latitude,
-                                longitude
+                            id: location.id,
+                            name: location.business_name,
+                            businessName: location.business_name,
+                            address: location.address || 'Addis Ababa, Ethiopia',
+                            coordinates: location.latitude && location.longitude ? {
+                                latitude: location.latitude,
+                                longitude: location.longitude
                             } : null,
-                            workingHours: partner.working_hours || '9:00 AM - 5:00 PM',
-                            color: partner.color || '#4CAF50',
+                            workingHours: location.working_hours || '9:00 AM - 5:00 PM',
+                            color: location.color || '#4CAF50',
                         };
                     })
                     .filter(partner => partner.coordinates !== null);

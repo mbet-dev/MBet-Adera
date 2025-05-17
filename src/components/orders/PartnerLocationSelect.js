@@ -36,55 +36,39 @@ export const PartnerLocationSelect = ({ label, onSelect, selectedPartner, type =
         const fetchPartnerLocations = async () => {
             try {
                 setLoading(true);
-                // Fetch all partners from Supabase database
+                // Fetch from partner_locations view instead of partners table
                 const { data, error } = await supabase
-                    .from('partners')
-                    .select('*');
+                    .from('partner_locations')
+                    .select('*')
+                    .eq('is_active', true);
                 
                 if (error) {
                     throw error;
                 }
                 
                 // Log raw data to debug
-                console.log('Raw partner data:', data);
-                
-                // Dummy location data for testing
-                const dummyLocations = {
-                    'Bole Express Couriers': { latitude: 8.9806, longitude: 38.7878 },
-                    'Kazanchis Post Center': { latitude: 9.0167, longitude: 38.7526 },
-                    'Piassa Delivery Hub': { latitude: 9.0356, longitude: 38.7468 },
-                    'Merkato Shipping Center': { latitude: 9.0384, longitude: 38.7423 },
-                    'Mexico Square Post': { latitude: 9.0147, longitude: 38.7633 },
-                    'Megenagna Express': { latitude: 9.0299, longitude: 38.7952 },
-                    'Gerji Pickup Point': { latitude: 9.0119, longitude: 38.8129 },
-                    'CMC Delivery': { latitude: 9.0486, longitude: 38.7632 },
-                    'Jemo Post Office': { latitude: 8.9961, longitude: 38.7175 }
-                };
+                console.log('Raw partner location data:', data);
                 
                 // Transform data to include coordinates in the expected format
                 const formattedPartners = data
-                    .filter(partner => partner.business_name !== 'MBet-Adera Sorting Facility Center')
-                    .map(partner => {
-                        // Use dummy location data if available
-                        const dummyLocation = dummyLocations[partner.business_name];
-                        
+                    .filter(location => location.business_name !== 'MBet-Adera Sorting Facility Center')
+                    .map(location => {
                         return {
-                            id: partner.id,
-                            name: partner.business_name,
-                            businessName: partner.business_name,
-                            address: partner.address || 'Addis Ababa, Ethiopia',
-                            coordinates: dummyLocation ? [
-                                dummyLocation.longitude,
-                                dummyLocation.latitude
+                            id: location.id,
+                            name: location.business_name,
+                            businessName: location.business_name,
+                            address: location.address || 'Addis Ababa, Ethiopia',
+                            coordinates: location.latitude && location.longitude ? [
+                                location.longitude,
+                                location.latitude
                             ] : null,
-                            workingHours: partner.working_hours || '9:00 AM - 5:00 PM',
+                            workingHours: location.working_hours || '9:00 AM - 5:00 PM',
                         };
                     })
                     .filter(partner => partner.coordinates !== null);
                 
                 setPartners(formattedPartners);
                 console.log('Loaded partners with coordinates:', formattedPartners.length);
-                console.log('Partners with coordinates:', formattedPartners);
                 
                 // If no partners were found, show an error in the console
                 if (formattedPartners.length === 0) {

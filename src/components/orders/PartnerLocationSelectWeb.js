@@ -16,68 +16,36 @@ export const PartnerLocationSelect = ({ label, onSelect, selectedPartner, type =
                 setLoading(true);
                 console.log('Fetching partner locations from Supabase...');
                 const { data, error } = await supabase
-                    .from('partners')
-                    .select('*');
+                    .from('partner_locations')
+                    .select('*')
+                    .eq('is_active', true);
                 
                 if (error) {
                     throw error;
                 }
                 
-                console.log(`Found ${data?.length || 0} partners in database`);
+                console.log(`Found ${data?.length || 0} partner locations in database`);
                 
                 // Format partners with location data from the database
                 const formattedPartners = data
-                    .filter(partner => partner.business_name !== 'MBet-Adera Sorting Facility Center')
-                    .map(partner => {
-                        // Get location data from partner's location field
-                        const locationData = partner.location || {};
-                        const latitude = locationData.latitude;
-                        const longitude = locationData.longitude;
-                        
-                        // Fallback to dummy locations if location is not in the database
-                        if (!latitude || !longitude) {
-                            // Dummy location data for testing
-                            const dummyLocations = {
-                                'Bole Express Couriers': { latitude: 8.9806, longitude: 38.7878 },
-                                'Kazanchis Post Center': { latitude: 9.0167, longitude: 38.7526 },
-                                'Piassa Delivery Hub': { latitude: 9.0356, longitude: 38.7468 },
-                                'Merkato Shipping Center': { latitude: 9.0384, longitude: 38.7423 },
-                                'Mexico Square Post': { latitude: 9.0147, longitude: 38.7633 },
-                                'Megenagna Express': { latitude: 9.0299, longitude: 38.7952 },
-                                'Gerji Pickup Point': { latitude: 9.0119, longitude: 38.8129 },
-                                'CMC Delivery': { latitude: 9.0486, longitude: 38.7632 },
-                                'Jemo Post Office': { latitude: 8.9961, longitude: 38.7175 }
-                            };
-                            
-                            const dummyLocation = dummyLocations[partner.business_name];
-                            if (dummyLocation) {
-                                return {
-                                    id: partner.id,
-                                    name: partner.business_name,
-                                    businessName: partner.business_name,
-                                    address: locationData.address || 'Addis Ababa, Ethiopia',
-                                    coordinates: {
-                                        latitude: dummyLocation.latitude,
-                                        longitude: dummyLocation.longitude
-                                    },
-                                    workingHours: partner.working_hours || '9:00 AM - 5:00 PM',
-                                    color: partner.color || '#4CAF50',
-                                };
-                            }
+                    .filter(location => location.business_name !== 'MBet-Adera Sorting Facility Center')
+                    .map(location => {
+                        // Process only if we have coordinates
+                        if (!location.latitude || !location.longitude) {
                             return null;
                         }
                         
                         return {
-                            id: partner.id,
-                            name: partner.business_name,
-                            businessName: partner.business_name,
-                            address: locationData.address || 'Addis Ababa, Ethiopia',
+                            id: location.id,
+                            name: location.business_name,
+                            businessName: location.business_name,
+                            address: location.address || 'Addis Ababa, Ethiopia',
                             coordinates: {
-                                latitude,
-                                longitude
+                                latitude: location.latitude,
+                                longitude: location.longitude
                             },
-                            workingHours: partner.working_hours || '9:00 AM - 5:00 PM',
-                            color: partner.color || '#4CAF50',
+                            workingHours: location.working_hours || '9:00 AM - 5:00 PM',
+                            color: location.color || '#4CAF50',
                         };
                     })
                     .filter(partner => partner && partner.coordinates);
