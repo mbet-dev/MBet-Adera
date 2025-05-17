@@ -16,8 +16,8 @@ import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../../src/services/supabase';
-import { ThemedView } from '../../../components/ThemedView';
-import { ThemedText } from '../../../components/ThemedText';
+import { ThemedView } from '../../../src/components/ThemedView';
+import { ThemedText } from '../../../src/components/ThemedText';
 import Colors from '../../../constants/Colors';
 
 interface ProfileFormData {

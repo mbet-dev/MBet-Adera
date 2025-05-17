@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, StatusBar, Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { EnhancedCreateOrderForm } from '../../components/orders/EnhancedCreateOrderForm';
-import { ThemedView } from '../../components/ThemedView';
+import { ThemedView } from '../../src/components/ThemedView';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 export default function CreateOrderScreen() {

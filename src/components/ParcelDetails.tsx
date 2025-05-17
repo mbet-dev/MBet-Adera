@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Parcel, ParcelStatus } from '@/types/parcel';
 import { formatDate } from '@/utils/formatting';
-import Avatar from '@/components/Avatar';
+import Avatar from './Avatar';
 
 interface Profile {
   id: string;

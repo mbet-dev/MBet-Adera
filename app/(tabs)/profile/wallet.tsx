@@ -16,8 +16,8 @@ import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import { ThemedText } from '../../../components/ThemedText';
-import { ThemedView } from '../../../components/ThemedView';
+import { ThemedText } from '../../../src/components/ThemedText';
+import { ThemedView } from '../../../src/components/ThemedView';
 import Colors from '../../../constants/Colors';
 import { walletService, Transaction } from '../../../src/services/walletService';
 

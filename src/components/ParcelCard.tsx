@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated, LayoutAni
 import { MaterialCommunityIcons, MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { Parcel, ParcelStatus } from '@/types/parcel';
 import { formatDate, formatCurrency } from '@/utils/formatting';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 
 const statusConfig: Record<ParcelStatus, {
   label: string;

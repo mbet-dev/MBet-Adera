@@ -32,7 +32,7 @@ import { router, Stack } from 'expo-router';
 import { Parcel, ParcelStatus } from '@/types/parcel';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { ParcelCard } from '@/components/ParcelCard';
+import { ParcelCard } from '@/src/components/ParcelCard';
 import { formatDate, formatCurrency } from '@/utils/formatting';
 import { supabase } from '@/lib/supabase';
 
