@@ -26,6 +26,8 @@ export interface OpenStreetMapProps {
   zoomLevel?: number;
   showLabels?: boolean;
   showCurrentLocation?: boolean;
+  showZoomControls?: boolean;
+  hideIndicator?: boolean;
 }
 
 export function OpenStreetMap({
@@ -37,6 +39,8 @@ export function OpenStreetMap({
   zoomLevel = 12,
   showLabels = false,
   showCurrentLocation = false,
+  showZoomControls = true,
+  hideIndicator = false,
 }: OpenStreetMapProps) {
   const [currentLocation, setCurrentLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [mapHtml, setMapHtml] = useState('');
@@ -186,6 +190,61 @@ export function OpenStreetMap({
             .locate-button:hover {
               background-color: #f5f5f5;
             }
+            .zoom-controls {
+              position: absolute;
+              bottom: 30px;
+              left: 10px;
+              display: flex;
+              flex-direction: column;
+              z-index: 1000;
+            }
+            .zoom-button {
+              background-color: white;
+              width: 40px;
+              height: 40px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+              cursor: pointer;
+              font-size: 24px;
+              font-weight: bold;
+            }
+            .zoom-button:first-child {
+              border-top-left-radius: 4px;
+              border-top-right-radius: 4px;
+              border-bottom: 1px solid #eee;
+            }
+            .zoom-button:last-child {
+              border-bottom-left-radius: 4px;
+              border-bottom-right-radius: 4px;
+            }
+            .zoom-button:hover {
+              background-color: #f5f5f5;
+            }
+            .content-indicator {
+              position: absolute;
+              bottom: 80px;
+              left: 50%;
+              transform: translateX(-50%);
+              background-color: rgba(0, 0, 0, 0.7);
+              color: white;
+              padding: 8px 16px;
+              border-radius: 20px;
+              font-size: 14px;
+              z-index: 999;
+              display: ${hideIndicator ? 'none' : 'flex'};
+              flex-direction: column;
+              align-items: center;
+              pointer-events: none;
+            }
+            .indicator-bar {
+              width: 40px;
+              height: 4px;
+              background-color: white;
+              border-radius: 2px;
+              margin-bottom: 5px;
+            }
           </style>
         </head>
         <body>
@@ -195,12 +254,26 @@ export function OpenStreetMap({
               <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V2c0-.55-.45-1-1-1s-1 .45-1 1v1.06C6.83 3.52 3.52 6.83 3.06 11H2c-.55 0-1 .45-1 1s.45 1 1 1h1.06c.46 4.17 3.77 7.48 7.94 7.94V22c0 .55.45 1 1 1s1-.45 1-1v-1.06c4.17-.46 7.48-3.77 7.94-7.94H22c.55 0 1-.45 1-1s-.45-1-1-1h-1.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
             </svg>
           </div>
+          ${showZoomControls ? `
+          <div class="zoom-controls">
+            <div id="zoom-in" class="zoom-button">+</div>
+            <div id="zoom-out" class="zoom-button">-</div>
+          </div>
+          ` : ''}
+          ${!hideIndicator ? `
+          <div class="content-indicator">
+            <div class="indicator-bar"></div>
+            <span>Tap to see below</span>
+          </div>
+          ` : ''}
           <script>
             // Initialize map with center based on props
             const initialLat = ${currentLocation ? currentLocation.latitude : initialLocation.latitude};
             const initialLng = ${currentLocation ? currentLocation.longitude : initialLocation.longitude};
             
-            const map = L.map('map').setView([initialLat, initialLng], ${zoomLevel});
+            const map = L.map('map', {
+              zoomControl: false // Disable the default zoom control
+            }).setView([initialLat, initialLng], ${zoomLevel});
             
             // Add OpenStreetMap tile layer
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -222,6 +295,17 @@ export function OpenStreetMap({
                 beginLocationTracking();
               }
             });
+
+            ${showZoomControls ? `
+            // Set up zoom control handlers
+            document.getElementById('zoom-in').addEventListener('click', function() {
+              map.zoomIn();
+            });
+            
+            document.getElementById('zoom-out').addEventListener('click', function() {
+              map.zoomOut();
+            });
+            ` : ''}
 
             // Function to add or update the current location marker
             function updateLocationMarker(position) {
@@ -439,7 +523,7 @@ export function OpenStreetMap({
       </html>
     `;
     setMapHtml(html);
-  }, [markers, initialLocation, zoomLevel, showLabels, currentLocation, showCurrentLocation]);
+  }, [markers, initialLocation, zoomLevel, showLabels, currentLocation, showCurrentLocation, showZoomControls, hideIndicator]);
 
   // Handle messages from the iframe
   useEffect(() => {

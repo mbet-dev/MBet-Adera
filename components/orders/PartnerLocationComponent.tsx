@@ -86,10 +86,11 @@ export const PartnerLocationComponent: React.FC<PartnerLocationComponentProps> =
         
         console.log('❗DEBUGGING PARTNER LOCATIONS - Fetch Start❗');
         
-        // Fetch partners from Supabase WITHOUT any limit
-        const { data: partners, error: partnersError } = await supabase
-          .from('partners')
-          .select('id, business_name, location, working_hours, is_facility, phone_number, color')
+        // Fetch from partner_locations view instead of partners table
+        const { data: partnerLocations, error: partnersError } = await supabase
+          .from('partner_locations')
+          .select('*')
+          .eq('is_active', true)
           .order('business_name');
           
         if (partnersError) {
@@ -97,66 +98,23 @@ export const PartnerLocationComponent: React.FC<PartnerLocationComponentProps> =
           throw partnersError;
         }
 
-        console.log('❗Partners fetched from DB:', partners?.length || 0);
-        console.log('❗Partner IDs:', partners?.map(p => p.id) || []);
+        console.log('❗Partner locations fetched from DB:', partnerLocations?.length || 0);
+        console.log('❗Partner location IDs:', partnerLocations?.map(p => p.id) || []);
         
-        // If we didn't get any partners, let's check if there's any data in the table
-        if (!partners || partners.length === 0) {
+        if (!partnerLocations || partnerLocations.length === 0) {
           const { count, error: countError } = await supabase
-            .from('partners')
+            .from('partner_locations')
             .select('*', { count: 'exact', head: true });
             
-          console.log('Total partners count:', count);
-          if (countError) console.error('Error counting partners:', countError);
+          console.log('Total partner locations count:', count);
+          if (countError) console.error('Error counting partner locations:', countError);
         }
         
-        // Let's also get all addresses to ensure we have complete location data
-        const { data: addresses, error: addressesError } = await supabase
-          .from('addresses')
-          .select('*');
-          
-        if (addressesError) {
-          console.error('Error fetching addresses:', addressesError);
-          throw addressesError;
-        }
-        
-        console.log('❗Addresses fetched from DB:', addresses?.length || 0);
-
-        if (partners && partners.length > 0) {
+        if (partnerLocations && partnerLocations.length > 0) {
           // Transform the data to match our PartnerLocation interface
-          const transformedPartners: PartnerLocation[] = partners.map(partner => {
-            // Parse the JSON location field if it's a string
-            let locationData = partner.location;
-            if (typeof locationData === 'string') {
-              try {
-                locationData = JSON.parse(locationData);
-              } catch (e) {
-                console.error('Error parsing location data:', e);
-              }
-            }
-
-            // If location data is missing, try to find matching address
-            if (!locationData || !locationData.latitude || !locationData.longitude) {
-              if (addresses && addresses.length > 0) {
-                // First try to match by business name in address
-                const matchingAddress = addresses.find(addr => 
-                  addr.address_line && 
-                  partner.business_name && 
-                  addr.address_line.toLowerCase().includes(partner.business_name.toLowerCase())
-                );
-                
-                if (matchingAddress) {
-                  locationData = {
-                    latitude: matchingAddress.latitude,
-                    longitude: matchingAddress.longitude,
-                    address: matchingAddress.address_line
-                  };
-                }
-              }
-            }
-
-            // Parse the JSON working_hours field if it's a string
-            let workingHoursData = partner.working_hours;
+          const transformedPartners: PartnerLocation[] = partnerLocations.map(location => {
+            // Parse the working_hours field if it's a string
+            let workingHoursData = location.working_hours;
             if (typeof workingHoursData === 'string') {
               try {
                 const parsedData = JSON.parse(workingHoursData);
@@ -210,39 +168,45 @@ export const PartnerLocationComponent: React.FC<PartnerLocationComponentProps> =
             }
 
             return {
-              id: partner.id,
-              businessName: partner.business_name,
-              name: partner.business_name,
-              address: locationData?.address || 'No address available',
-              coordinates: locationData ? {
-                latitude: parseFloat(locationData.latitude) || 0,
-                longitude: parseFloat(locationData.longitude) || 0
+              id: location.id,
+              businessName: location.business_name,
+              name: location.business_name,
+              address: location.address_line || 'No address available',
+              coordinates: location.latitude && location.longitude ? {
+                latitude: parseFloat(location.latitude) || 0,
+                longitude: parseFloat(location.longitude) || 0
               } : undefined,
               workingHours: workingHoursData,
-              isFacility: partner.is_facility,
-              phoneNumber: partner.phone_number,
-              color: partner.color
+              isFacility: location.is_facility,
+              phoneNumber: location.phone_number,
+              color: location.color
             };
           });
           
-          console.log('❗All transformed partners:', transformedPartners.length);
+          console.log('❗All transformed partner locations:', transformedPartners.length);
           
-          // Only filter out sorting facilities, NOT limiting number
+          // Filter out sorting facilities and HQ as specified
           const availablePartners = transformedPartners.filter(partner => 
-            !partner.isFacility && partner.coordinates && 
-            partner.coordinates.latitude !== 0 && partner.coordinates.longitude !== 0
+            // Exclude sorting facilities and HQ
+            !partner.isFacility && 
+            partner.businessName !== 'MBet-Adera Sorting Facility Center' &&
+            partner.businessName !== 'MBet-Adera HQ' &&
+            // Ensure we have coordinates
+            partner.coordinates && 
+            partner.coordinates.latitude !== 0 && 
+            partner.coordinates.longitude !== 0
           );
           
-          console.log('❗CRITICAL: Available partners after filtering:', availablePartners.length);
+          console.log('❗CRITICAL: Available partner locations after filtering:', availablePartners.length);
           console.log('❗Partner business names:', availablePartners.map(p => p.businessName));
           
-          // CRITICAL: Set both state variables to the FULL list of available partners
+          // Set both state variables with the filtered partners
           setPartners(availablePartners);
           setFilteredPartners(availablePartners);
           
           console.log('❗Set partners and filteredPartners state with', availablePartners.length, 'items');
         } else {
-          console.error('❗No partners data returned from database');
+          console.error('❗No partner locations data returned from database');
         }
       } catch (error) {
         console.error('❗Error loading partner locations:', error);
@@ -253,7 +217,7 @@ export const PartnerLocationComponent: React.FC<PartnerLocationComponentProps> =
         console.log('❗Partner location loading completed');
       }
     };
-    
+
     fetchPartnerLocations();
   }, []);
 

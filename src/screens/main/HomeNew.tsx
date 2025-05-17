@@ -970,6 +970,8 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
               style={styles.map}
               showCurrentLocation={true}
               zoomLevel={13}
+              showZoomControls={true}
+              hideIndicator={mapViewState === 'expanded'}
             />
             
             {/* My location button */}
@@ -980,14 +982,6 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
               >
                 <MaterialIcons name="my-location" size={24} color="#4CAF50" />
               </TouchableOpacity>
-            )}
-            
-            {/* Partially visible content indicator */}
-            {mapViewState === 'default' && (
-              <View style={styles.contentIndicator}>
-                <View style={styles.contentIndicatorBar} />
-                <Text style={styles.contentIndicatorText}>Scroll for deliveries</Text>
-              </View>
             )}
           </Animated.View>
         </View>
