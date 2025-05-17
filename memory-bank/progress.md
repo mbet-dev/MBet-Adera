@@ -93,7 +93,30 @@
    - [ ] Batch processing
 
 ## Known Issues
-- None reported yet (project in initial phase)
+
+1. **Performance**
+   - Map rendering can be slow on older devices
+   - Initial load time needs optimization
+
+2. **UI/UX**
+   - Some screens need responsive design improvements
+   - Dark mode support is incomplete
+
+3. **Testing**
+   - Need more comprehensive unit tests
+   - End-to-end testing coverage is limited
+
+4. **Documentation**
+   - API documentation needs updating
+   - Code comments are inconsistent
+
+5. **Navigation**
+   - ~~Duplicate navigation structures causing confusion~~ ✓ RESOLVED
+   - ~~Inconsistent navigation patterns between screens~~ ✓ RESOLVED
+
+6. **Code Structure**
+   - ~~Duplicate components in multiple locations~~ ✓ RESOLVED
+   - ~~Obsolete files and directories cluttering the codebase~~ ✓ RESOLVED
 
 ## Testing Status
 - [ ] Unit tests setup
@@ -214,21 +237,3 @@
    - Endpoint consolidation
    - Response caching
    - Rate limiting
-
-## Known Issues
-
-1. **Performance**
-   - Map rendering can be slow on older devices
-   - Initial load time needs optimization
-
-2. **UI/UX**
-   - Some screens need responsive design improvements
-   - Dark mode support is incomplete
-
-3. **Testing**
-   - Need more comprehensive unit tests
-   - End-to-end testing coverage is limited
-
-4. **Documentation**
-   - API documentation needs updating
-   - Code comments are inconsistent

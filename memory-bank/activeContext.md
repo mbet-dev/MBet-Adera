@@ -37,6 +37,15 @@
 15. Updated documentation:
     - Updated MULTILINGUAL_SUPPORT.md to reflect the new implementation
     - Added information about where users can change their language preference
+16. Cleaned up codebase by removing duplicate and obsolete files:
+    - Removed duplicate UI components (Avatar, ThemedText, ThemedView, ParallaxScrollView, ExternalLink, Collapsible)
+    - Removed duplicate ParcelCard component
+    - Deleted obsolete navigation files and directories
+    - Removed old SQL scripts and fix files
+17. Transitioned fully to Expo Router:
+    - Updated App.tsx to use Expo Router instead of React Navigation
+    - Removed old navigation structure
+    - Consolidated component locations
 
 ## Next Steps
 1. Complete Memory Bank documentation
