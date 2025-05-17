@@ -1,7 +1,7 @@
 # MBet-Adera Active Context
 
 ## Current Work Focus
-- Current branch: v4.5.2
+- Current branch: develop/v4.5.3
 - Initial project setup and configuration
 - Memory Bank initialization
 - Core architecture establishment
