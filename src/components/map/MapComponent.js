@@ -21,6 +21,14 @@ const WebMapPlaceholder = (props) => (
   </View>
 );
 
+// Helper function to validate coordinates
+const validateCoords = (latitude, longitude) => {
+  // Check if coords are valid numbers, not undefined, null, or NaN
+  return typeof latitude === 'number' && typeof longitude === 'number' && 
+         !isNaN(latitude) && !isNaN(longitude) &&
+         latitude !== 0 && longitude !== 0; // Optional: 0,0 coordinates are often error values
+};
+
 // Create a component that renders the appropriate map based on platform
 const MapComponent = (props) => {
   // For web, return the placeholder
@@ -49,18 +57,19 @@ const MapComponent = (props) => {
         onPress={(e) => onMapPress?.(e.nativeEvent.coordinate)}
         {...otherProps}
       >
-        {markers.map((marker) => (
-          <Marker
-            key={marker.id}
-            coordinate={{
-              latitude: marker.latitude,
-              longitude: marker.longitude,
-            }}
-            title={marker.title}
-            description={marker.description}
-            onPress={() => onMarkerPress?.(marker)}
-          />
-        ))}
+        {markers.filter(marker => validateCoords(marker.latitude, marker.longitude))
+          .map((marker) => (
+            <Marker
+              key={marker.id}
+              coordinate={{
+                latitude: marker.latitude,
+                longitude: marker.longitude,
+              }}
+              title={marker.title}
+              description={marker.description}
+              onPress={() => onMarkerPress?.(marker)}
+            />
+          ))}
         {children}
       </MapView>
     );

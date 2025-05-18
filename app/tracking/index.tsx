@@ -439,6 +439,14 @@ const MapTrackingScreen = () => {
     );
   }, [parcel?.tracking_code, qrValue]);
 
+  // Add helper function to validate coordinates
+  const validateCoords = (latitude?: number, longitude?: number) => {
+    // Check if coords are valid numbers, not undefined, null, or NaN
+    return typeof latitude === 'number' && typeof longitude === 'number' && 
+           !isNaN(latitude) && !isNaN(longitude) &&
+           latitude !== 0 && longitude !== 0; // Optional: 0,0 coordinates are often error values
+  };
+
   // Render loading state
   if (loading) {
     return (
@@ -454,7 +462,7 @@ const MapTrackingScreen = () => {
   // Convert locations to markers
   const mapMarkers: MarkerData[] = [];
   
-  if (pickupLocation) {
+  if (pickupLocation && validateCoords(pickupLocation.latitude, pickupLocation.longitude)) {
     mapMarkers.push({
       id: 'pickup',
       latitude: pickupLocation.latitude,
@@ -464,7 +472,7 @@ const MapTrackingScreen = () => {
     });
   }
   
-  if (dropoffLocation) {
+  if (dropoffLocation && validateCoords(dropoffLocation.latitude, dropoffLocation.longitude)) {
     mapMarkers.push({
       id: 'dropoff',
       latitude: dropoffLocation.latitude,
@@ -474,7 +482,7 @@ const MapTrackingScreen = () => {
     });
   }
   
-  if (courierLocation) {
+  if (courierLocation && validateCoords(courierLocation.latitude, courierLocation.longitude)) {
     mapMarkers.push({
       id: 'courier',
       latitude: courierLocation.latitude,
@@ -485,7 +493,7 @@ const MapTrackingScreen = () => {
   }
 
   // Initial location for the map (center point)
-  const initialLocation = pickupLocation ? {
+  const initialLocation = pickupLocation && validateCoords(pickupLocation.latitude, pickupLocation.longitude) ? {
     latitude: pickupLocation.latitude,
     longitude: pickupLocation.longitude,
   } : {

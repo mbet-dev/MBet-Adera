@@ -68,15 +68,25 @@ export const PartnerLocationSelect = ({ label, onSelect, selectedPartner, type =
         setModalVisible(false);
     };
 
+    // Helper function to validate coordinates
+    const validateCoords = (latitude, longitude) => {
+        // Check if coords are valid numbers, not undefined, null, or NaN
+        return typeof latitude === 'number' && typeof longitude === 'number' && 
+            !isNaN(latitude) && !isNaN(longitude) &&
+            latitude !== 0 && longitude !== 0; // Optional: 0,0 coordinates are often error values
+    };
+
     // Format partner data as markers for the map
     const getMapMarkers = () => {
-        return partners.map(partner => ({
-            id: partner.id,
-            latitude: partner.coordinates.latitude,
-            longitude: partner.coordinates.longitude,
-            title: partner.businessName || partner.name,
-            color: partner.color || '#4CAF50',
-        }));
+        return partners
+            .filter(partner => partner.coordinates && validateCoords(partner.coordinates.latitude, partner.coordinates.longitude))
+            .map(partner => ({
+                id: partner.id,
+                latitude: partner.coordinates.latitude,
+                longitude: partner.coordinates.longitude,
+                title: partner.businessName || partner.name,
+                color: partner.color || '#4CAF50',
+            }));
     };
 
     // Render the map with all partner locations

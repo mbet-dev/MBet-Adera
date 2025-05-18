@@ -28,6 +28,7 @@ import { supabase } from '../../../src/services/supabase';
 import Colors from '../../../constants/Colors';
 import { walletService } from '../../../src/services/walletService';
 import errorHandler from '../../../src/utils/errorHandler';
+import { parcelService } from '../../../src/services/parcelService';
 
 // Custom Components
 import DashboardCard from '../../../components/profile/DashboardCard';
@@ -239,40 +240,15 @@ export default function EnhancedProfileScreen() {
         throw new Error('No authenticated user found');
       }
 
-      // First get the user's profile to ensure we have the correct ID
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (profileError) {
-        throw profileError;
-      }
-
-      if (!profileData) {
-        throw new Error('Profile not found');
-      }
-
-      // Get all parcels for this user
-      const { data: parcels, error: parcelsError } = await supabase
-        .from('parcels')
-        .select('id, status')
-        .eq('sender_id', profileData.id);
-
-      if (parcelsError) {
-        throw parcelsError;
-      }
-
-      // Calculate statistics
-      const stats = {
-        total: parcels?.length || 0,
-        completed: parcels?.filter(p => p.status === 'delivered').length || 0,
-        active: parcels?.filter(p => ['pending', 'accepted', 'picked_up', 'in_transit', 'out_for_delivery'].includes(p.status)).length || 0,
-        cancelled: parcels?.filter(p => p.status === 'cancelled').length || 0,
-      };
-
-      setDeliveryStats(stats);
+      // Use the same parcelService method as the home screen for consistency
+      const stats = await parcelService.getParcelStatistics(user.id);
+      
+      setDeliveryStats({
+        total: stats.total || 0,
+        completed: stats.delivered || 0, // Note: maps 'delivered' to 'completed' for UI consistency
+        active: stats.active || 0,
+        cancelled: stats.cancelled || 0,
+      });
     } catch (error) {
       console.error('Error fetching delivery stats:', error);
       errorHandler.errorHandler.handleError(error, 'DeliveryStats');

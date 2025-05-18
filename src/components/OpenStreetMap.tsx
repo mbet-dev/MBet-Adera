@@ -182,6 +182,14 @@ export const OpenStreetMap = React.forwardRef<
   }
 });
 
+// Add this helper function before the NativeMap component to validate coordinates
+const validateCoords = (latitude?: number, longitude?: number) => {
+  // Check if coords are valid numbers, not undefined, null, or NaN
+  return typeof latitude === 'number' && typeof longitude === 'number' && 
+         !isNaN(latitude) && !isNaN(longitude) &&
+         latitude !== 0 && longitude !== 0; // Optional: 0,0 coordinates are often error values
+};
+
 // Native implementation - convert to forwardRef
 const NativeMap = React.forwardRef<any, OpenStreetMapProps & { 
   currentLocation: {latitude: number, longitude: number} | null;
@@ -273,66 +281,67 @@ const NativeMap = React.forwardRef<any, OpenStreetMapProps & {
         }}
       >
         {/* Regular markers */}
-        {markers.map((marker) => {
-          // Check if this is the MBet-Adera Sorting Facility Hub
-          const isSortingFacility = marker.description?.includes('MBet-Adera Sorting Facility Hub') || 
-                                   marker.title?.includes('Sorting Facility');
-          
-          // Use black color specifically for sorting facility
-          const markerColor = isSortingFacility ? '#000000' : marker.color;
-          
-          return (
-            <Marker
-              key={marker.id}
-              coordinate={{
-                latitude: marker.latitude,
-                longitude: marker.longitude,
-              }}
-              title={marker.title}
-              description={marker.description}
-              onPress={() => onMarkerPress && onMarkerPress(marker)}
-              zIndex={marker.zIndex}
-            >
-              <View>
-                {/* Marker icon/circle */}
-                <View style={[
-                  styles.markerContainer, 
-                  { 
-                    backgroundColor: markerColor,
-                    width: marker.size || 30,
-                    height: marker.size || 30,
-                    borderRadius: (marker.size || 30) / 2,
-                  }
-                ]}>
-                  {marker.icon ? (
-                    <MaterialIcons 
-                      name={marker.icon as any} 
-                      size={(marker.size || 30) * 0.6} 
-                      color="#FFF" 
-                    />
-                  ) : (
-                    <Text style={styles.markerText}>{marker.title}</Text>
+        {markers.filter(marker => validateCoords(marker.latitude, marker.longitude))
+          .map((marker) => {
+            // Check if this is the MBet-Adera Sorting Facility Hub
+            const isSortingFacility = marker.description?.includes('MBet-Adera Sorting Facility Hub') || 
+                                     marker.title?.includes('Sorting Facility');
+            
+            // Use black color specifically for sorting facility
+            const markerColor = isSortingFacility ? '#000000' : marker.color;
+            
+            return (
+              <Marker
+                key={marker.id}
+                coordinate={{
+                  latitude: marker.latitude,
+                  longitude: marker.longitude,
+                }}
+                title={marker.title}
+                description={marker.description}
+                onPress={() => onMarkerPress && onMarkerPress(marker)}
+                zIndex={marker.zIndex}
+              >
+                <View>
+                  {/* Marker icon/circle */}
+                  <View style={[
+                    styles.markerContainer, 
+                    { 
+                      backgroundColor: markerColor,
+                      width: marker.size || 30,
+                      height: marker.size || 30,
+                      borderRadius: (marker.size || 30) / 2,
+                    }
+                  ]}>
+                    {marker.icon ? (
+                      <MaterialIcons 
+                        name={marker.icon as any} 
+                        size={(marker.size || 30) * 0.6} 
+                        color="#FFF" 
+                      />
+                    ) : (
+                      <Text style={styles.markerText}>{marker.title}</Text>
+                    )}
+                  </View>
+                  
+                  {/* Caption below the marker */}
+                  {showLabels && (
+                    <View style={styles.captionContainer}>
+                      <Text style={[
+                        styles.captionText,
+                        isSortingFacility ? styles.sortingFacilityCaption : null
+                      ]}>
+                        {isSortingFacility ? 'MBet-Adera Sorting Facility' : marker.title}
+                      </Text>
+                    </View>
                   )}
                 </View>
-                
-                {/* Caption below the marker */}
-                {showLabels && (
-                  <View style={styles.captionContainer}>
-                    <Text style={[
-                      styles.captionText,
-                      isSortingFacility ? styles.sortingFacilityCaption : null
-                    ]}>
-                      {isSortingFacility ? 'MBet-Adera Sorting Facility' : marker.title}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </Marker>
-          );
-        })}
+              </Marker>
+            );
+          })}
         
         {/* Current location marker (blue dot) */}
-        {currentLocation && (
+        {currentLocation && validateCoords(currentLocation.latitude, currentLocation.longitude) && (
           <Marker
             coordinate={{
               latitude: currentLocation.latitude,

@@ -493,74 +493,76 @@ export const parcelService = {
 
       if (error) {
         console.error('Error fetching parcel statistics from RPC:', error);
-        throw error;
-      }
-
-      // Ensure total is calculated as the sum of all statuses
-      if (data) {
-        // Make a copy to avoid modifying the original
-        const stats = { ...data };
+        // Don't throw, fall back to manual calculation below
+      } else if (data) {
+        // Ensure total is calculated correctly as the sum of all statuses
+        const stats = { 
+          active: data.active || 0,
+          delivered: data.delivered || 0,
+          cancelled: data.cancelled || 0,
+          total: 0
+        };
         
         // Calculate total as the sum of all status types
-        // Make sure active includes all non-terminal statuses (pending, accepted, picked_up, in_transit)
         stats.total = stats.active + stats.delivered + stats.cancelled;
         
         return stats;
       }
 
-      // Fallback if RPC returned no data
-      throw new Error('No statistics returned from RPC');
-    } catch (error) {
+      // If we reach here, either there was an error or no data returned
       console.log('Falling back to manual statistics calculation');
+    } catch (error) {
+      console.error('Error with RPC statistics call:', error);
+      console.log('Falling back to manual statistics calculation');
+    }
       
-      try {
-        // Fallback to manual calculation by counting parcels by status
-        const activeStatuses = ['pending', 'accepted', 'picked_up', 'in_transit'];
+    try {
+      // Fallback to manual calculation by counting parcels by status
+      const activeStatuses = ['pending', 'accepted', 'picked_up', 'in_transit'];
+      
+      // Count active parcels (pending, accepted, picked_up, in_transit)
+      const { count: activeCount, error: activeError } = await supabase
+        .from('parcels')
+        .select('*', { count: 'exact', head: true })
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .in('status', activeStatuses);
         
-        // Count active parcels (pending, accepted, picked_up, in_transit)
-        const { count: activeCount, error: activeError } = await supabase
-          .from('parcels')
-          .select('*', { count: 'exact', head: true })
-          .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-          .in('status', activeStatuses);
-          
-        if (activeError) throw activeError;
+      if (activeError) throw activeError;
+      
+      // Count delivered parcels
+      const { count: deliveredCount, error: deliveredError } = await supabase
+        .from('parcels')
+        .select('*', { count: 'exact', head: true })
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .eq('status', 'delivered');
         
-        // Count delivered parcels
-        const { count: deliveredCount, error: deliveredError } = await supabase
-          .from('parcels')
-          .select('*', { count: 'exact', head: true })
-          .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-          .eq('status', 'delivered');
-          
-        if (deliveredError) throw deliveredError;
+      if (deliveredError) throw deliveredError;
+      
+      // Count cancelled parcels
+      const { count: cancelledCount, error: cancelledError } = await supabase
+        .from('parcels')
+        .select('*', { count: 'exact', head: true })
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+        .eq('status', 'cancelled');
         
-        // Count cancelled parcels
-        const { count: cancelledCount, error: cancelledError } = await supabase
-          .from('parcels')
-          .select('*', { count: 'exact', head: true })
-          .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-          .eq('status', 'cancelled');
-          
-        if (cancelledError) throw cancelledError;
-        
-        const stats = {
-          active: activeCount || 0,
-          delivered: deliveredCount || 0,
-          cancelled: cancelledCount || 0,
-          total: (activeCount || 0) + (deliveredCount || 0) + (cancelledCount || 0)
-        };
-        
-        return stats;
-      } catch (fallbackError) {
-        console.error('Error in fallback statistics calculation:', fallbackError);
-        return {
-          active: 0,
-          delivered: 0,
-          cancelled: 0,
-          total: 0
-        };
-      }
+      if (cancelledError) throw cancelledError;
+      
+      const stats = {
+        active: activeCount || 0,
+        delivered: deliveredCount || 0,
+        cancelled: cancelledCount || 0,
+        total: (activeCount || 0) + (deliveredCount || 0) + (cancelledCount || 0)
+      };
+      
+      return stats;
+    } catch (fallbackError) {
+      console.error('Error in fallback statistics calculation:', fallbackError);
+      return {
+        active: 0,
+        delivered: 0,
+        cancelled: 0,
+        total: 0
+      };
     }
   },
 
