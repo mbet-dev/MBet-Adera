@@ -13,8 +13,9 @@ import {
   Dimensions,
   Linking,
   Platform,
+  BackHandler,
 } from 'react-native';
-import { useLocalSearchParams, useNavigation, router } from 'expo-router';
+import { useLocalSearchParams, useNavigation, router, useFocusEffect } from 'expo-router';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../../../src/services/supabase';
 import { formatCurrency, formatDate } from '../../../src/utils/formatting';
@@ -30,7 +31,7 @@ interface Profile {
   id: string;
   full_name?: string;
   phone_number?: string;
-  avatar_url?: string;
+  profile_picture_url?: string;
 }
 
 const statusConfig = {
@@ -109,9 +110,37 @@ const ParcelDetailScreen = () => {
     fetchParcelDetails();
   }, [id, user]);
 
+  // Handle back button press and navigation focus changes
+  useFocusEffect(
+    useCallback(() => {
+      // Handle hardware back button on Android
+      const backHandler = BackHandler.addEventListener(
+        'hardwareBackPress',
+        () => {
+          // Return to the previous screen and clean up
+          router.back();
+          return true;
+        }
+      );
+
+      // Set up clean up of resources when screen loses focus
+      return () => {
+        backHandler.remove();
+        // Clear state to free up memory when leaving the screen
+        setParcel(null);
+        setSender(null);
+        setRecipient(null);
+        setLoading(false);
+        setRefreshing(false);
+      };
+    }, [])
+  );
+
   const fetchParcelDetails = async () => {
     if (!id || !user) {
       setLoading(false);
+      // Navigate back to orders screen if no ID or user
+      router.replace('/(tabs)/orders');
       return;
     }
 
@@ -122,8 +151,9 @@ const ParcelDetailScreen = () => {
       const fetchedParcel = await parcelService.getParcelById(id, user.id);
 
       if (!fetchedParcel) {
-        Alert.alert('Error', 'Parcel not found or access denied.');
-        router.back();
+        console.log('Parcel not found, returning to orders screen');
+        // Navigate back to orders screen instead of showing error
+        router.replace('/(tabs)/orders');
         return;
       }
 
@@ -135,7 +165,7 @@ const ParcelDetailScreen = () => {
       if (fetchedParcel.sender_id) {
         const { data: senderData, error: senderError } = await supabase
           .from('profiles')
-          .select('id, full_name, phone_number, avatar_url')
+          .select('id, full_name, phone_number, profile_picture_url')
           .eq('id', fetchedParcel.sender_id)
           .single();
         if (senderError) console.error("Error fetching sender:", senderError.message);
@@ -145,7 +175,7 @@ const ParcelDetailScreen = () => {
       if (fetchedParcel.receiver_id) {
         const { data: recipientData, error: recipientError } = await supabase
           .from('profiles')
-          .select('id, full_name, phone_number, avatar_url')
+          .select('id, full_name, phone_number, profile_picture_url')
           .eq('id', fetchedParcel.receiver_id)
           .single();
         if (recipientError) console.error("Error fetching recipient:", recipientError.message);
@@ -182,7 +212,7 @@ const ParcelDetailScreen = () => {
         <Text style={styles.personTitle}>{title}</Text>
         <View style={styles.personDetails}>
           <Avatar 
-            source={person.avatar_url ? { uri: person.avatar_url } : null} 
+            source={person.profile_picture_url ? { uri: person.profile_picture_url } : null} 
             name={person.full_name}
             style={styles.personImage}
           />
@@ -441,15 +471,9 @@ const ParcelDetailScreen = () => {
   }
 
   if (!parcel) {
-    return (
-      <View style={styles.errorContainer}>
-        <Ionicons name="alert-circle-outline" size={64} color="#F44336" />
-        <Text style={styles.errorText}>Parcel not found</Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
+    // This shouldn't be shown anymore since we navigate away
+    // when parcel is not found, but keeping as a fallback
+    return null;
   }
 
   return (
@@ -490,29 +514,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     color: '#666666',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    marginTop: 10,
-    fontSize: 18,
-    color: '#F44336',
-    marginBottom: 20,
-  },
-  backButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  backButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   headerContainer: {
     flexDirection: 'row',
