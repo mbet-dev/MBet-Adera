@@ -34,6 +34,8 @@ export interface OpenStreetMapProps {
   zoomLevel?: number;
   showLabels?: boolean;
   showCurrentLocation?: boolean;
+  showZoomControls?: boolean;
+  hideIndicator?: boolean;
 }
 
 // Import platform-specific components
@@ -64,6 +66,8 @@ export const OpenStreetMap = React.forwardRef<
   zoomLevel = 12,
   showLabels = false,
   showCurrentLocation = false,
+  showZoomControls = true,
+  hideIndicator = false,
 }, ref) => {
   const [currentLocation, setCurrentLocation] = useState<{latitude: number, longitude: number} | null>(null);
   
@@ -156,6 +160,7 @@ export const OpenStreetMap = React.forwardRef<
       showLabels={showLabels}
       zoomLevel={zoomLevel}
       showCurrentLocation={showCurrentLocation}
+      showZoomControls={showZoomControls}
       style={style}
       getCurrentLocation={getCurrentLocation}
     />;
@@ -169,6 +174,8 @@ export const OpenStreetMap = React.forwardRef<
       onMapPress={onMapPress}
       showLabels={showLabels}
       zoomLevel={zoomLevel}
+      showZoomControls={showZoomControls}
+      hideIndicator={hideIndicator}
       style={style}
       getCurrentLocation={getCurrentLocation}
     />;
@@ -179,6 +186,7 @@ export const OpenStreetMap = React.forwardRef<
 const NativeMap = React.forwardRef<any, OpenStreetMapProps & { 
   currentLocation: {latitude: number, longitude: number} | null;
   getCurrentLocation: () => Promise<void>;
+  showZoomControls: boolean;
 }>((props, ref) => {
   const { 
     markers, 
@@ -190,7 +198,8 @@ const NativeMap = React.forwardRef<any, OpenStreetMapProps & {
     zoomLevel,
     showCurrentLocation,
     style,
-    getCurrentLocation
+    getCurrentLocation,
+    showZoomControls,
   } = props;
 
   // Calculate delta based on zoom level (lower delta = higher zoom)
@@ -221,6 +230,31 @@ const NativeMap = React.forwardRef<any, OpenStreetMapProps & {
     }
   };
 
+  // Handle zoom in/out functionality
+  const handleZoomIn = () => {
+    if (ref && typeof ref !== 'function' && ref.current) {
+      const currentRegion = ref.current.__lastRegion || region;
+      const zoomedRegion = {
+        ...currentRegion,
+        latitudeDelta: currentRegion.latitudeDelta / 1.5,
+        longitudeDelta: currentRegion.longitudeDelta / 1.5
+      };
+      ref.current.animateToRegion(zoomedRegion, 300);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (ref && typeof ref !== 'function' && ref.current) {
+      const currentRegion = ref.current.__lastRegion || region;
+      const zoomedRegion = {
+        ...currentRegion,
+        latitudeDelta: currentRegion.latitudeDelta * 1.5,
+        longitudeDelta: currentRegion.longitudeDelta * 1.5
+      };
+      ref.current.animateToRegion(zoomedRegion, 300);
+    }
+  };
+
   return (
     <View style={[styles.container, style]}>
       <MapView
@@ -231,6 +265,12 @@ const NativeMap = React.forwardRef<any, OpenStreetMapProps & {
         onPress={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => 
           onMapPress && onMapPress(e.nativeEvent.coordinate)
         }
+        onRegionChangeComplete={(newRegion: any) => {
+          // Store the last region for zoom calculations
+          if (ref && typeof ref !== 'function' && ref.current) {
+            ref.current.__lastRegion = newRegion;
+          }
+        }}
       >
         {/* Regular markers */}
         {markers.map((marker) => {
@@ -314,6 +354,24 @@ const NativeMap = React.forwardRef<any, OpenStreetMapProps & {
       >
         <MaterialIcons name="my-location" size={20} color="#4CAF50" />
       </TouchableOpacity>
+      
+      {/* Zoom controls */}
+      {showZoomControls && (
+        <View style={styles.zoomControlsContainer}>
+          <TouchableOpacity
+            style={styles.zoomButton}
+            onPress={handleZoomIn}
+          >
+            <MaterialIcons name="add" size={24} color="#4CAF50" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.zoomButton}
+            onPress={handleZoomOut}
+          >
+            <MaterialIcons name="remove" size={24} color="#4CAF50" />
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 });
@@ -322,6 +380,8 @@ const NativeMap = React.forwardRef<any, OpenStreetMapProps & {
 const WebMap = React.forwardRef<any, OpenStreetMapProps & { 
   currentLocation: {latitude: number, longitude: number} | null;
   getCurrentLocation: () => Promise<void>;
+  showZoomControls: boolean;
+  hideIndicator: boolean;
 }>((props, ref) => {
   const {
     markers, 
@@ -332,7 +392,9 @@ const WebMap = React.forwardRef<any, OpenStreetMapProps & {
     showLabels,
     zoomLevel,
     style,
-    getCurrentLocation
+    getCurrentLocation,
+    showZoomControls,
+    hideIndicator,
   } = props;
   const [locationRequested, setLocationRequested] = useState(false);
   const [browserLocation, setBrowserLocation] = useState<{latitude: number, longitude: number} | null>(null);
@@ -358,6 +420,68 @@ const WebMap = React.forwardRef<any, OpenStreetMapProps & {
     }
   }, []);
   
+  // Add a listener for window messages in addition to WebView messages for web environment
+  useEffect(() => {
+    // Only set up the listener on web
+    if (Platform.OS === 'web') {
+      const handleWindowMessage = (event: MessageEvent) => {
+        try {
+          const data = typeof event.data === 'string' 
+            ? JSON.parse(event.data) 
+            : event.data;
+          
+          processMessageData(data);
+        } catch (error) {
+          console.error('Error handling window message:', error);
+        }
+      };
+      
+      window.addEventListener('message', handleWindowMessage);
+      return () => {
+        window.removeEventListener('message', handleWindowMessage);
+      };
+    }
+  }, []);
+
+  // Unified function to process message data regardless of source
+  const processMessageData = (data: any) => {
+    if (data.type === 'markerPress' && onMarkerPress) {
+      // Handle both direct marker objects and marker IDs
+      if (data.marker) {
+        onMarkerPress(data.marker);
+      } else if (data.markerId) {
+        const marker = markers.find(m => m.id === data.markerId);
+        if (marker) {
+          onMarkerPress(marker);
+        }
+      }
+    } else if (data.type === 'mapClick' && onMapPress) {
+      onMapPress({
+        latitude: data.latitude,
+        longitude: data.longitude
+      });
+    } else if (data.type === 'locationUpdate') {
+      // Update the React Native state with browser location
+      setBrowserLocation({
+        latitude: data.latitude,
+        longitude: data.longitude
+      });
+    } else if (data.type === 'locationError') {
+      console.error('Browser location error:', data.message);
+      Alert.alert('Location Error', 'Unable to get your precise location. Try enabling location services in your browser settings.');
+    }
+  };
+  
+  // Update the WebView message handler to use the unified processor
+  const handleWebViewMessage = (event: { nativeEvent: { data: string } }) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      processMessageData(data);
+    } catch (error) {
+      console.error('Error parsing WebView message:', error);
+    }
+  };
+
   // Build HTML for web-based map
   const getMapHTML = () => {
     const markersJson = JSON.stringify(markers.map(marker => {
@@ -530,10 +654,22 @@ const WebMap = React.forwardRef<any, OpenStreetMapProps & {
             
             // Handle marker click
             mapMarker.on('click', () => {
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'markerPress',
-                markerId: marker.id
-              }));
+              // Use a more reliable method to post messages that works in both ReactNativeWebView and iframe contexts
+              try {
+                if (window.ReactNativeWebView) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'markerPress',
+                    markerId: marker.id
+                  }));
+                } else {
+                  window.parent.postMessage(JSON.stringify({
+                    type: 'markerPress',
+                    markerId: marker.id
+                  }), '*');
+                }
+              } catch (e) {
+                console.error('Error sending message:', e);
+              }
             });
           });
 
@@ -547,13 +683,23 @@ const WebMap = React.forwardRef<any, OpenStreetMapProps & {
                   const lng = position.coords.longitude;
                   const accuracy = position.coords.accuracy;
                   
-                  // Send location back to React Native
-                  window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: 'locationUpdate',
-                    latitude: lat,
-                    longitude: lng,
-                    accuracy: accuracy
-                  }));
+                  // Send location back to React Native using a compatible method
+                  try {
+                    const messageData = JSON.stringify({
+                      type: 'locationUpdate',
+                      latitude: lat,
+                      longitude: lng,
+                      accuracy: accuracy
+                    });
+                    
+                    if (window.ReactNativeWebView) {
+                      window.ReactNativeWebView.postMessage(messageData);
+                    } else {
+                      window.parent.postMessage(messageData, '*');
+                    }
+                  } catch (e) {
+                    console.error('Error sending location update:', e);
+                  }
                   
                   // Update or create the user location marker
                   updateUserLocationMarker(lat, lng, accuracy);
@@ -615,11 +761,21 @@ const WebMap = React.forwardRef<any, OpenStreetMapProps & {
           
           // Handle map clicks
           map.on('click', function(e) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'mapClick',
-              latitude: e.latlng.lat,
-              longitude: e.latlng.lng
-            }));
+            try {
+              const messageData = JSON.stringify({
+                type: 'mapClick',
+                latitude: e.latlng.lat,
+                longitude: e.latlng.lng
+              });
+              
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(messageData);
+              } else {
+                window.parent.postMessage(messageData, '*');
+              }
+            } catch (e) {
+              console.error('Error sending map click:', e);
+            }
           });
           
           // Function to center on user location
@@ -640,10 +796,20 @@ const WebMap = React.forwardRef<any, OpenStreetMapProps & {
                 function(error) {
                   console.error('Error centering on location:', error);
                   // Let the user know there was an error
-                  window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: 'locationError',
-                    message: error.message
-                  }));
+                  try {
+                    const messageData = JSON.stringify({
+                      type: 'locationError',
+                      message: error.message
+                    });
+                    
+                    if (window.ReactNativeWebView) {
+                      window.ReactNativeWebView.postMessage(messageData);
+                    } else {
+                      window.parent.postMessage(messageData, '*');
+                    }
+                  } catch (e) {
+                    console.error('Error sending location error:', e);
+                  }
                 },
                 { 
                   enableHighAccuracy: true, 
@@ -657,36 +823,6 @@ const WebMap = React.forwardRef<any, OpenStreetMapProps & {
       </body>
       </html>
     `;
-  };
-
-  // Handle messages from WebView
-  const handleWebViewMessage = (event: { nativeEvent: { data: string } }) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data);
-      
-      if (data.type === 'markerPress' && onMarkerPress) {
-        const marker = markers.find(m => m.id === data.markerId);
-        if (marker) {
-          onMarkerPress(marker);
-        }
-      } else if (data.type === 'mapClick' && onMapPress) {
-        onMapPress({
-          latitude: data.latitude,
-          longitude: data.longitude
-        });
-      } else if (data.type === 'locationUpdate') {
-        // Update the React Native state with browser location
-        setBrowserLocation({
-          latitude: data.latitude,
-          longitude: data.longitude
-        });
-      } else if (data.type === 'locationError') {
-        console.error('Browser location error:', data.message);
-        Alert.alert('Location Error', 'Unable to get your precise location. Try enabling location services in your browser settings.');
-      }
-    } catch (error) {
-      console.error('Error handling WebView message:', error);
-    }
   };
 
   // Center map on user's location
@@ -878,5 +1014,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  zoomControlsContainer: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    flexDirection: 'column',
+    zIndex: 999,
+  },
+  zoomButton: {
+    width: 40,
+    height: 40,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    marginVertical: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
 }); 

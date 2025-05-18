@@ -971,9 +971,17 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
               showCurrentLocation={true}
               zoomLevel={13}
               showZoomControls={true}
-              hideIndicator={mapViewState === 'expanded'}
+              hideIndicator={false}
             />
             
+            {/* Content Indicator - Shown on both platforms */}
+            <View style={[styles.contentIndicator, mapViewState === 'expanded' && styles.hidden]}>
+              <View style={styles.contentIndicatorBar} />
+              <Text style={styles.contentIndicatorText}>
+                Scroll for deliveries & others view
+              </Text>
+            </View>
+
             {/* My location button */}
             {Platform.OS !== 'web' && (
               <TouchableOpacity 
@@ -997,12 +1005,12 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
             <View style={styles.quickActionsContent}>
               <TouchableOpacity 
                 style={styles.actionButton}
-                onPress={() => navigation.navigate('NewDelivery')}
+                onPress={() => router.push('/(tabs)/create-order')}
               >
                 <View style={[styles.actionIconCircle, {backgroundColor: '#E8F5E9'}]}>
-                  <MaterialIcons name="local-shipping" size={24} color="#4CAF50" />
+                  <MaterialIcons name="add-box" size={24} color="#4CAF50" />
                 </View>
-                <Text style={styles.actionText}>New Delivery</Text>
+                <Text style={styles.actionText}>Send Order</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
@@ -1727,12 +1735,13 @@ const styles = StyleSheet.create({
   },
   contentIndicator: {
     position: 'absolute',
-    bottom: 0,
+    bottom: 10,
     left: 0,
     right: 0,
     alignItems: 'center',
     paddingBottom: 8,
     backgroundColor: 'rgba(255,255,255,0.8)',
+    zIndex: 100,
   },
   contentIndicatorBar: {
     width: 40,
@@ -2408,6 +2417,9 @@ const styles = StyleSheet.create({
   },
   closedDot: {
     backgroundColor: '#F44336',
+  },
+  hidden: {
+    display: 'none',
   },
 } as const);
 

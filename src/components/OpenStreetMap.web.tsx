@@ -233,7 +233,7 @@ export function OpenStreetMap({
               border-radius: 20px;
               font-size: 14px;
               z-index: 999;
-              display: ${hideIndicator ? 'none' : 'flex'};
+              display: none; /* Always hidden on web */
               flex-direction: column;
               align-items: center;
               pointer-events: none;
@@ -258,12 +258,6 @@ export function OpenStreetMap({
           <div class="zoom-controls">
             <div id="zoom-in" class="zoom-button">+</div>
             <div id="zoom-out" class="zoom-button">-</div>
-          </div>
-          ` : ''}
-          ${!hideIndicator ? `
-          <div class="content-indicator">
-            <div class="indicator-bar"></div>
-            <span>Tap to see below</span>
           </div>
           ` : ''}
           <script>
@@ -534,8 +528,18 @@ export function OpenStreetMap({
           ? JSON.parse(event.data) 
           : event.data;
 
+        // Match the property names in the data explicitly
         if (data.type === 'markerPress' && onMarkerPress) {
-          onMarkerPress(data.marker);
+          if (data.marker) {
+            // Direct marker object
+            onMarkerPress(data.marker);
+          } else if (data.markerId) {
+            // Find the marker by ID
+            const marker = markers.find(m => m.id === data.markerId);
+            if (marker) {
+              onMarkerPress(marker);
+            }
+          }
         } else if (data.type === 'mapClick' && onMapPress) {
           onMapPress(data.location);
         } else if (data.type === 'currentLocation') {

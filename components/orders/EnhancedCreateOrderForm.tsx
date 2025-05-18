@@ -259,9 +259,9 @@ export const EnhancedCreateOrderForm = () => {
             color="#4CAF50" 
           />
         </View>
-        <Text style={styles.title}>Create New Delivery</Text>
+        <Text style={styles.title}>Create New Parcel Delivery Order</Text>
         <Text style={styles.subtitle}>
-          Fill in the details below to create a new delivery order
+          Fill in the details below to create a new parcel delivery order
         </Text>
       </View>
 
@@ -453,7 +453,7 @@ export const EnhancedCreateOrderForm = () => {
         ) : (
           <>
             <MaterialIcons name="local-shipping" size={20} color="#FFFFFF" style={styles.buttonIcon} />
-            <Text style={styles.submitButtonText}>Create Delivery Order</Text>
+            <Text style={styles.submitButtonText}>Create Parcel Delivery Order</Text>
           </>
         )}
       </TouchableOpacity>

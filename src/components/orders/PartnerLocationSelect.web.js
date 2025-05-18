@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Image, ActivityIndicator } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
-import { OpenStreetMap } from '../../components/OpenStreetMap.web';
+import { OpenStreetMap } from '../../components/OpenStreetMap';
 
 // Web-specific implementation that doesn't use react-native-maps
 export const PartnerLocationSelect = ({ label, onSelect, selectedPartner, type = 'pickup' }) => {
@@ -31,10 +31,10 @@ export const PartnerLocationSelect = ({ label, onSelect, selectedPartner, type =
                             id: location.id,
                             name: location.business_name,
                             businessName: location.business_name,
-                            address: location.address || 'Addis Ababa, Ethiopia',
+                            address: location.address_line || location.address || 'Addis Ababa, Ethiopia',
                             coordinates: location.latitude && location.longitude ? {
-                                latitude: location.latitude,
-                                longitude: location.longitude
+                                latitude: parseFloat(location.latitude),
+                                longitude: parseFloat(location.longitude)
                             } : null,
                             workingHours: location.working_hours || '9:00 AM - 5:00 PM',
                             color: location.color || '#4CAF50',
@@ -44,6 +44,7 @@ export const PartnerLocationSelect = ({ label, onSelect, selectedPartner, type =
                 
                 setPartners(formattedPartners);
                 console.log('Partners with coordinates loaded:', formattedPartners.length);
+                console.log('First partner data:', formattedPartners.length > 0 ? formattedPartners[0] : 'No partners');
             } catch (error) {
                 console.error('Error loading partner locations:', error);
                 setPartners([]);
@@ -62,58 +63,94 @@ export const PartnerLocationSelect = ({ label, onSelect, selectedPartner, type =
 
     // Format partner data as markers for the map
     const getMapMarkers = () => {
-        const allPartners = partners.map(partner => ({
-            id: partner.id,
-            latitude: partner.coordinates.latitude,
-            longitude: partner.coordinates.longitude,
-            title: partner.businessName || partner.name,
-            color: partner.color || '#4CAF50',
-        }));
-        
-        // If a partner is selected, highlight it
-        if (selectedPartner && selectedPartner.coordinates) {
-            return allPartners;
+        try {
+            if (!partners || partners.length === 0) {
+                console.log('No partners available for map markers');
+                return [];
+            }
+            
+            return partners.map(partner => {
+                if (!partner.coordinates) {
+                    console.log(`Partner ${partner.id} missing coordinates`);
+                    return null;
+                }
+                
+                return {
+                    id: partner.id,
+                    latitude: partner.coordinates.latitude,
+                    longitude: partner.coordinates.longitude,
+                    title: partner.businessName || partner.name,
+                    color: partner.color || '#4CAF50',
+                    description: partner.address,
+                    size: selectedPartner && selectedPartner.id === partner.id ? 40 : 30,
+                    icon: type === 'pickup' ? 'add-location' : 'flag',
+                };
+            }).filter(marker => marker !== null);
+        } catch (error) {
+            console.error('Error generating map markers:', error);
+            return [];
         }
-        
-        return allPartners;
     };
 
     // Render the map with all partner locations
     const renderMap = () => {
-        // Default center (Addis Ababa)
-        const defaultCenter = {
-            latitude: 9.0222, 
-            longitude: 38.7468
-        };
-        
-        // If a partner is selected, center on it
-        const center = selectedPartner && selectedPartner.coordinates 
-            ? { 
-                latitude: selectedPartner.coordinates.latitude, 
-                longitude: selectedPartner.coordinates.longitude 
-              }
-            : defaultCenter;
+        try {
+            // Default center (Addis Ababa)
+            const defaultCenter = {
+                latitude: 9.0222, 
+                longitude: 38.7468
+            };
             
-        const markers = getMapMarkers();
-        
-        return (
-            <View style={styles.mapContainer}>
-                <OpenStreetMap
-                    markers={markers}
-                    initialLocation={center}
-                    style={styles.map}
-                    zoomLevel={12}
-                    showLabels={true}
-                    onMarkerPress={(marker) => {
-                        // Find the partner with this ID and select it
-                        const partner = partners.find(p => p.id === marker.id);
-                        if (partner) {
-                            handleSelectPartner(partner);
-                        }
-                    }}
-                />
-            </View>
-        );
+            // If a partner is selected, center on it
+            const center = selectedPartner && selectedPartner.coordinates 
+                ? { 
+                    latitude: selectedPartner.coordinates.latitude, 
+                    longitude: selectedPartner.coordinates.longitude 
+                  }
+                : defaultCenter;
+                
+            const markers = getMapMarkers();
+            console.log(`Rendering map with ${markers.length} markers`);
+            
+            // Skip rendering if no markers
+            if (markers.length === 0 && !selectedPartner) {
+                return (
+                    <View style={styles.emptyMapContainer}>
+                        <MaterialIcons name="map-off" size={40} color="#999" />
+                        <Text style={styles.emptyMapText}>No locations available</Text>
+                    </View>
+                );
+            }
+            
+            return (
+                <View style={styles.mapContainer}>
+                    <OpenStreetMap
+                        markers={markers}
+                        initialLocation={center}
+                        style={styles.map}
+                        zoomLevel={12}
+                        showLabels={true}
+                        showZoomControls={true}
+                        onMarkerPress={(marker) => {
+                            // Find the partner with this ID and select it
+                            const partner = partners.find(p => p.id === marker.id);
+                            if (partner) {
+                                console.log('Selected partner from map:', partner.businessName);
+                                handleSelectPartner(partner);
+                            }
+                        }}
+                    />
+                </View>
+            );
+        } catch (error) {
+            console.error('Error rendering map:', error);
+            return (
+                <View style={styles.emptyMapContainer}>
+                    <MaterialIcons name="error" size={40} color="#F44336" />
+                    <Text style={styles.emptyMapText}>Error loading map</Text>
+                </View>
+            );
+        }
     };
 
     // Get the display name
@@ -257,12 +294,11 @@ const styles = StyleSheet.create({
     dropdownButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        borderWidth: 1,
-        borderColor: '#ccc',
-        borderRadius: 8,
         padding: 12,
-        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        backgroundColor: '#f9f9f9',
     },
     selectedDisplay: {
         flexDirection: 'row',
@@ -270,12 +306,12 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     selectedTextContainer: {
+        marginLeft: 12,
         flex: 1,
-        marginLeft: 8,
     },
     selectedName: {
-        fontSize: 16,
-        fontWeight: '500',
+        fontSize: 14,
+        fontWeight: '600',
         color: '#333',
     },
     selectedAddress: {
@@ -289,51 +325,66 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     placeholderText: {
+        marginLeft: 12,
+        color: '#666',
         fontSize: 14,
-        color: '#999',
-        marginLeft: 8,
     },
     locationIcon: {
-        marginRight: 4,
+        width: 24,
+        height: 24,
+        textAlign: 'center',
+        marginRight: 8,
     },
     mapPreview: {
-        width: '100%',
-        height: 180,
-        marginTop: 12,
+        height: 150,
         borderRadius: 8,
         overflow: 'hidden',
+        marginTop: 10,
         borderWidth: 1,
-        borderColor: '#ccc',
+        borderColor: '#ddd',
     },
     mapContainer: {
-        width: '100%',
-        height: '100%',
+        flex: 1,
+    },
+    mapFullContainer: {
+        height: 250,
+        marginBottom: 10,
     },
     map: {
         width: '100%',
         height: '100%',
     },
+    emptyMapContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: 150,
+        backgroundColor: '#f5f5f5',
+        borderRadius: 8,
+    },
+    emptyMapText: {
+        marginTop: 10,
+        color: '#999',
+    },
     modalContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0,0,0,0.5)',
     },
     modalContent: {
+        backgroundColor: 'white',
+        borderRadius: 8,
+        padding: 20,
         width: '90%',
         maxWidth: 500,
         maxHeight: '90%',
-        backgroundColor: '#fff',
-        borderRadius: 12,
-        overflow: 'hidden',
     },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        marginBottom: 16,
     },
     modalTitle: {
         fontSize: 18,
@@ -345,13 +396,13 @@ const styles = StyleSheet.create({
     },
     partnerItem: {
         flexDirection: 'row',
-        padding: 16,
+        padding: 12,
         borderBottomWidth: 1,
         borderBottomColor: '#eee',
         alignItems: 'center',
     },
     selectedPartner: {
-        borderLeftWidth: 4,
+        borderWidth: 1,
     },
     radioIcon: {
         marginRight: 12,
@@ -360,14 +411,14 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     partnerName: {
-        fontSize: 16,
-        fontWeight: '500',
+        fontSize: 14,
+        fontWeight: 'bold',
         color: '#333',
     },
     partnerAddress: {
         fontSize: 12,
         color: '#666',
-        marginTop: 4,
+        marginTop: 2,
     },
     loadingContainer: {
         padding: 20,
@@ -384,19 +435,5 @@ const styles = StyleSheet.create({
     emptyText: {
         marginTop: 10,
         color: '#666',
-    },
-    mapFullContainer: {
-        width: '100%',
-        height: 300,
-    },
-    webMapContainer: {
-        width: '100%',
-        height: '100%',
-        borderRadius: 8,
-        overflow: 'hidden',
-    },
-    mapImage: {
-        width: '100%',
-        height: '100%',
     },
 });
