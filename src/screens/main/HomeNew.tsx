@@ -1188,7 +1188,10 @@ const HomeScreen = ({ navigation: navigationProp }: any) => {
                   <TouchableOpacity
                     key={delivery.id}
                     style={styles.deliveryCard}
-                    onPress={() => router.push(`/orders-screen/${delivery.id}`)}
+                    onPress={() => router.push({
+                      pathname: '/(modals)/parcel-details',
+                      params: { id: delivery.id }
+                    })}
                     activeOpacity={0.7}
                   >
                     <View style={styles.deliveryHeader}>

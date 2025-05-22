@@ -331,7 +331,10 @@ export default function OrdersScreen() {
   const renderOrderCard = ({ item }: { item: Order }) => (
     <Card
       style={styles.card}
-      onPress={() => router.push(`/order-details/${item.id}`)}
+      onPress={() => router.push({
+        pathname: '/(modals)/parcel-details',
+        params: { id: item.id }
+      })}
     >
       <Card.Content>
         <View style={styles.cardHeader}>

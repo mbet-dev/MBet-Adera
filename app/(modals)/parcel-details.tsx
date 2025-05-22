@@ -13,6 +13,7 @@ import {
   Alert,
   Image,
   SafeAreaView,
+  RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, Stack, router } from 'expo-router';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -28,69 +29,29 @@ import { supabase } from '@/lib/supabase';
 import { formatDate, formatCurrency } from '@/utils/formatting';
 import { useAuth } from '../../src/context/AuthContext';
 import { parcelService } from '@/services/parcelService';
+import Colors from '../../constants/Colors';
 
 // Import types from the parcel types file
 import { Parcel, ParcelStatus, Profile, NullableAddress, DatabaseParcel } from '../../src/types/parcel';
 
-// Status configuration for styling and messages
-const statusConfig: Record<ParcelStatus, {
-  label: string;
-  description: string;
-  icon: string;
-  color: string;
-  backgroundColor: string;
-}> = {
-  pending: {
-    label: 'Pending',
-    description: 'Your parcel is waiting to be confirmed.',
-    icon: 'time-outline',
-    color: '#FB8C00',
-    backgroundColor: '#FFF3E0',
-  },
-  confirmed: {
-    label: 'Confirmed',
-    description: 'Your parcel has been confirmed and will be picked up soon.',
-    icon: 'checkmark-circle-outline',
-    color: '#4CAF50',
-    backgroundColor: '#E8F5E9',
-  },
-  picked_up: {
-    label: 'Picked Up',
-    description: 'Your parcel has been picked up and is on its way.',
-    icon: 'archive-outline',
-    color: '#1976D2',
-    backgroundColor: '#E3F2FD',
-  },
-  in_transit: {
-    label: 'In Transit',
-    description: 'Your parcel is on its way to the destination.',
-    icon: 'car-outline',
-    color: '#7B1FA2',
-    backgroundColor: '#F3E5F5',
-  },
-  delivered: {
-    label: 'Delivered',
-    description: 'Your parcel has been delivered successfully.',
-    icon: 'checkmark-done-outline',
-    color: '#388E3C',
-    backgroundColor: '#E8F5E9',
-  },
-  cancelled: {
-    label: 'Cancelled',
-    description: 'This delivery has been cancelled.',
-    icon: 'close-circle-outline',
-    color: '#D32F2F',
-    backgroundColor: '#FFEBEE',
-  },
+// Status colors mapping
+const statusColors: Record<string, string> = {
+  'pending': '#FFA000',
+  'confirmed': '#1976D2',
+  'picked_up': '#7B1FA2',
+  'in_transit': '#0288D1',
+  'out_for_delivery': '#0097A7',
+  'delivered': '#388E3C',
+  'cancelled': '#D32F2F',
+  'failed': '#D32F2F',
 };
-
-const { width: windowWidth } = Dimensions.get('window');
 
 export default function ParcelDetailsModal() {
   const params = useLocalSearchParams();
   const id = params.id as string;
   const { user } = useAuth();
   const qrRef = useRef<any>(null);
+  const { width } = Dimensions.get('window');
   
   const [loading, setLoading] = useState(true);
   const [parcel, setParcel] = useState<Parcel | null>(null);
@@ -100,6 +61,7 @@ export default function ParcelDetailsModal() {
   const [qrValue, setQrValue] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'details' | 'tracking' | 'timeline'>('details');
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Effect for loading the parcel
   useEffect(() => {
@@ -117,7 +79,6 @@ export default function ParcelDetailsModal() {
   // Setup QR code value
   useEffect(() => {
     if (parcel) {
-      // Use tracking_code or fall back to ID
       const trackingCode = parcel.tracking_code || parcel.id;
       const deepLink = `mbetadera://track/${trackingCode}`;
       const webUrl = `https://mbetadera.app/track/${trackingCode}`;
@@ -126,113 +87,86 @@ export default function ParcelDetailsModal() {
   }, [parcel]);
 
   const fetchParcelDetails = async () => {
-    if (!user || !id) {
-      console.log("Missing user or parcel ID");
-      setError("Missing required information. Please try again.");
-      setLoading(false);
-      return;
-    }
-    
-    console.log("Attempting to fetch parcel with ID:", id);
-    console.log("User ID:", user?.id);
-    
-    setLoading(true);
-    setError(null);
-    
     try {
-      // Fetch parcel details with correctly typed parameters
-      const parcelData = await parcelService.getParcelById(id, user.id);
-      
-      if (!parcelData) {
-        console.log("Parcel data not found for ID:", id);
-        setError("Parcel not found or you do not have permission to view it");
+      setLoading(true);
+      setError(null);
+
+      // Fetch parcel details and both profiles in a single query
+      const { data: parcelData, error } = await supabase
+        .from('parcels')
+        .select(`
+          *,
+          sender:sender_id (id, full_name, phone_number),
+          receiver:receiver_id (id, full_name, phone_number)
+        `)
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        setError('Could not load parcel details.');
         setLoading(false);
         return;
       }
-      
-      console.log("Successfully fetched parcel:", parcelData.id);
-      
-      // Convert DatabaseParcel to Parcel if needed
-      const processedParcel: Parcel = {
-        ...parcelData,
-        // Ensure addresses are not null
-        pickup_address: parcelData.pickup_address || {
-          id: '',
-          partner_id: '',
-          address_line: 'Unknown location',
-          city: 'Unknown',
-          created_at: '',
-          updated_at: ''
-        },
-        dropoff_address: parcelData.dropoff_address || {
-          id: '',
-          partner_id: '',
-          address_line: 'Unknown location',
-          city: 'Unknown',
-          created_at: '',
-          updated_at: ''
-        }
+
+      // Fetch pickup and dropoff addresses in parallel
+      const [pickupAddressRes, dropoffAddressRes] = await Promise.all([
+        parcelData.pickup_address_id
+          ? supabase
+              .from('addresses')
+              .select('*')
+              .eq('id', parcelData.pickup_address_id)
+              .single()
+          : Promise.resolve({ data: null }),
+        parcelData.dropoff_address_id
+          ? supabase
+              .from('addresses')
+              .select('*')
+              .eq('id', parcelData.dropoff_address_id)
+              .single()
+          : Promise.resolve({ data: null })
+      ]);
+
+      const pickupAddress = pickupAddressRes.data || null;
+      const dropoffAddress = dropoffAddressRes.data || null;
+
+      const combinedParcelData: Parcel = {
+        ...(parcelData as any),
+        pickup_address: pickupAddress,
+        dropoff_address: dropoffAddress,
+        id: parcelData.id,
+        created_at: parcelData.created_at || '',
+        updated_at: parcelData.updated_at || '',
+        sender_id: parcelData.sender_id || '',
+        receiver_id: parcelData.receiver_id || '',
+        tracking_code: parcelData.tracking_code || '',
+        status: parcelData.status as ParcelStatus || 'pending',
+        package_size: parcelData.package_size || 'small',
+        is_fragile: parcelData.is_fragile || false,
+        weight: parcelData.weight || 0,
+        price: parcelData.price || 0,
+        package_description: parcelData.package_description || '',
+        notes: parcelData.notes || '',
+        estimated_delivery: parcelData.estimated_delivery || '',
+        sender: parcelData.sender,
+        receiver: parcelData.receiver,
       };
-      
-      setParcel(processedParcel);
-      
-      // Fetch sender and recipient profiles if available
-      if (parcelData.sender_id) {
-        fetchProfile(parcelData.sender_id).then(setSender);
-      }
-      
-      if (parcelData.receiver_id) {
-        fetchProfile(parcelData.receiver_id).then(setRecipient);
-      }
+
+      setParcel(combinedParcelData);
+      setSender(parcelData.sender);
+      setRecipient(parcelData.receiver);
     } catch (error) {
-      console.error('Error fetching parcel details:', error);
       setError('Could not load parcel details. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchProfile = async (profileId: string): Promise<Profile | null> => {
-    if (!profileId) return null;
-    
-    try {
-      console.log("Fetching profile for ID:", profileId);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', profileId)
-        .single();
-        
-      if (error) {
-        console.error("Error fetching profile:", error);
-        throw error;
-      }
-      
-      return data as Profile;
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      return null;
-    }
-  };
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchParcelDetails();
+    setRefreshing(false);
+  }, []);
 
-  // Function to capture QR code as an image
-  const captureQRCode = async (): Promise<string | null> => {
-    try {
-      if (!qrRef.current) return null;
-      
-      const viewShot = qrRef.current as any;
-      if (viewShot && typeof viewShot.capture === 'function') {
-        const uri = await viewShot.capture();
-        return uri;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error capturing QR code:', error);
-      return null;
-    }
-  };
-
-  // Function to handle sharing with QR code
   const handleShare = async () => {
     if (!parcel?.tracking_code) return;
     
@@ -261,7 +195,6 @@ export default function ParcelDetailsModal() {
           Alert.alert('Sharing Info', 'Tracking information copied to clipboard!');
         }
       } else {
-        // Native sharing implementation
         const qrImageUri = await captureQRCode();
         
         if (qrImageUri) {
@@ -287,64 +220,32 @@ export default function ParcelDetailsModal() {
         }
       }
     } catch (error) {
-      console.error('Error sharing parcel details:', error);
-      Alert.alert('Sharing Error', 'There was a problem sharing the tracking information.');
+      console.error('Error sharing:', error);
+      Alert.alert('Error', 'Failed to share tracking information');
     } finally {
       setSharingInProgress(false);
     }
   };
 
-  const handleCall = (phoneNumber?: string) => {
-    if (!phoneNumber || phoneNumber === 'N/A') {
-      Alert.alert('No Phone Number', 'No phone number available for this contact.');
-      return;
+  const captureQRCode = async (): Promise<string | null> => {
+    try {
+      if (!qrRef.current) return null;
+      
+      const viewShot = qrRef.current as any;
+      if (viewShot && typeof viewShot.capture === 'function') {
+        const uri = await viewShot.capture();
+        return uri;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error capturing QR code:', error);
+      return null;
     }
-    
-    Linking.openURL(`tel:${phoneNumber}`);
   };
 
   const handleTrack = () => {
-    if (parcel) {
-      router.push({
-        pathname: '/track-map',
-        params: { id: parcel.id }
-      });
-    }
-  };
-
-  const handleChat = () => {
-    if (parcel) {
-      router.push({
-        pathname: '/chat/[parcelId]',
-        params: { parcelId: parcel.id }
-      } as any);
-    }
-  };
-
-  const handleCancel = async () => {
-    if (!parcel) return;
-    
-    Alert.alert(
-      'Cancel Delivery',
-      'Are you sure you want to cancel this delivery?',
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Yes',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await parcelService.updateParcelStatus(parcel.id, 'cancelled');
-              await fetchParcelDetails();
-              Alert.alert('Success', 'Delivery cancelled successfully');
-            } catch (error) {
-              console.error('Error cancelling delivery:', error);
-              Alert.alert('Error', 'Could not cancel delivery. Please try again.');
-            }
-          }
-        }
-      ]
-    );
+    if (!parcel?.tracking_code) return;
+    router.push(`/tracking/${parcel.tracking_code}`);
   };
 
   const renderTabBar = () => (
@@ -359,7 +260,7 @@ export default function ParcelDetailsModal() {
         <Ionicons
           name="information-circle-outline"
           size={18}
-          color={activeTab === 'details' ? '#1976D2' : '#757575'}
+          color={activeTab === 'details' ? Colors.light.primary : '#757575'}
         />
         <Text
           style={[
@@ -381,7 +282,7 @@ export default function ParcelDetailsModal() {
         <Ionicons
           name="qr-code-outline"
           size={18}
-          color={activeTab === 'tracking' ? '#1976D2' : '#757575'}
+          color={activeTab === 'tracking' ? Colors.light.primary : '#757575'}
         />
         <Text
           style={[
@@ -403,7 +304,7 @@ export default function ParcelDetailsModal() {
         <Ionicons
           name="time-outline"
           size={18}
-          color={activeTab === 'timeline' ? '#1976D2' : '#757575'}
+          color={activeTab === 'timeline' ? Colors.light.primary : '#757575'}
         />
         <Text
           style={[
@@ -420,6 +321,9 @@ export default function ParcelDetailsModal() {
   const renderQRCode = useCallback(() => {
     if (!parcel) return null;
     
+    // Increase logo size slightly and make it proportional
+    const logoSize = Platform.OS === 'web' ? 80 : 50;
+    
     return (
       <View style={styles.qrCodeContainer}>
         <Text style={styles.qrCodeTitle}>Scan to Track</Text>
@@ -428,8 +332,12 @@ export default function ParcelDetailsModal() {
             <QRCode
               value={qrValue}
               size={200}
-              color="#333333"
               backgroundColor="#FFFFFF"
+              color="#000000"
+              logo={require('../../assets/images/new-mbetadera-icon-1.png')}
+              logoSize={logoSize}
+              logoBackgroundColor="white"
+              logoBorderRadius={10}
             />
           </View>
         </ViewShot>
@@ -443,48 +351,45 @@ export default function ParcelDetailsModal() {
     );
   }, [parcel?.tracking_code, qrValue]);
 
-  const renderPersonSection = (title: string, person: Profile | null, contact: any) => {
-    const displayName = person?.full_name || contact?.name || 'N/A';
-    const phoneNumber = person?.phone_number || contact?.phone || 'N/A';
-
-    return (
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        <View style={styles.personContainer}>
-          <View style={styles.personDetails}>
-            <View style={styles.personRow}>
-              <Ionicons name="person" size={20} color="#666" />
-              <Text style={styles.personName}>{displayName}</Text>
-            </View>
-
-            <View style={styles.personRow}>
-              <Ionicons name="call" size={20} color="#666" />
-              <Text style={styles.personPhone}>{phoneNumber}</Text>
-            </View>
+  const renderPersonSection = (title: string, profile: Profile | null, contact: string | undefined) => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.personContainer}>
+        <View style={styles.personDetails}>
+          <View style={styles.personRow}>
+            <Ionicons name="person-outline" size={20} color="#666" />
+            <Text style={styles.personName}>
+              {profile?.full_name || contact || 'N/A'}
+            </Text>
           </View>
-
+          <View style={styles.personRow}>
+            <Ionicons name="call-outline" size={20} color="#666" />
+            <Text style={styles.personPhone}>
+              {profile?.phone_number || contact || 'N/A'}
+            </Text>
+          </View>
+        </View>
+        {(profile?.phone_number || contact) && (
           <TouchableOpacity
             style={styles.callButton}
-            onPress={() => handleCall(phoneNumber !== 'N/A' ? phoneNumber : undefined)}
+            onPress={() => Linking.openURL(`tel:${profile?.phone_number || contact}`)}
           >
             <Ionicons name="call" size={20} color="#FFFFFF" />
           </TouchableOpacity>
-        </View>
+        )}
       </View>
-    );
-  };
+    </View>
+  );
 
-  const renderAddressSection = (title: string, address: any) => (
+  const renderAddressSection = (title: string, address: NullableAddress | null) => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
       <View style={styles.addressContainer}>
         <View style={styles.addressRow}>
-          <Ionicons name="location" size={20} color="#666" />
-          <Text style={styles.addressText}>{address?.address_line || 'N/A'}</Text>
-        </View>
-        <View style={styles.addressRow}>
-          <Ionicons name="business" size={20} color="#666" />
-          <Text style={styles.addressText}>{address?.city || 'Addis Ababa'}</Text>
+          <Ionicons name="location-outline" size={20} color="#666" />
+          <Text style={styles.addressText}>
+            {address?.address_line || 'Address not available'}
+          </Text>
         </View>
       </View>
     </View>
@@ -496,49 +401,38 @@ export default function ParcelDetailsModal() {
     return (
       <View style={styles.tabContent}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Package Details</Text>
+          <Text style={styles.sectionTitle}>Package Information</Text>
           <View style={styles.detailsContainer}>
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Size</Text>
-              <Text style={styles.detailValue}>
-                {parcel.package_size ?
-                  parcel.package_size.charAt(0).toUpperCase() +
-                  parcel.package_size.slice(1) : 'N/A'}
-              </Text>
-            </View>
-
-            {parcel.weight && (
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Weight</Text>
-                <Text style={styles.detailValue}>{parcel.weight} kg</Text>
+              <Text style={styles.detailLabel}>Status</Text>
+              <View style={[styles.statusBadge, { backgroundColor: statusColors[parcel.status] || '#757575' }]}>
+                <Text style={styles.statusBadgeText}>{parcel.status?.toUpperCase()}</Text>
               </View>
-            )}
-
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Size</Text>
+              <Text style={styles.detailValue}>{parcel.package_size || 'N/A'}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Weight</Text>
+              <Text style={styles.detailValue}>{parcel.weight ? `${parcel.weight} kg` : 'N/A'}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Fragile</Text>
+              <Text style={styles.detailValue}>{parcel.is_fragile ? 'Yes' : 'No'}</Text>
+            </View>
             {parcel.package_description && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Description</Text>
                 <Text style={styles.detailValue}>{parcel.package_description}</Text>
               </View>
             )}
-
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Fragile</Text>
-              <Text style={styles.detailValue}>
-                {parcel.is_fragile ? 'Yes' : 'No'}
-              </Text>
-            </View>
-
-            {parcel.price !== undefined && parcel.price > 0 && (
+            {parcel.notes && (
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Estimated Price</Text>
-                <Text style={styles.detailValue}>{formatCurrency(parcel.price)}</Text>
+                <Text style={styles.detailLabel}>Instructions</Text>
+                <Text style={styles.detailValue}>{parcel.notes}</Text>
               </View>
             )}
-
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Created</Text>
-              <Text style={styles.detailValue}>{formatDate(parcel.created_at)}</Text>
-            </View>
           </View>
         </View>
 
@@ -587,92 +481,26 @@ export default function ParcelDetailsModal() {
   const renderTimelineTab = () => {
     if (!parcel) return null;
 
-    // Define the status order
-    const statuses: ParcelStatus[] = ['pending', 'confirmed', 'picked_up', 'in_transit', 'delivered'];
-    
-    // If the parcel is cancelled, handle specially
-    if (parcel.status === 'cancelled') {
-      return (
-        <View style={styles.tabContent}>
-          <View style={styles.cancelledContainer}>
-            <View style={styles.cancelledBadge}>
-              <Ionicons name="close-circle" size={24} color="#D32F2F" />
-              <Text style={styles.cancelledText}>Delivery Cancelled</Text>
-            </View>
-            <Text style={styles.cancelledDescription}>
-              This delivery has been cancelled and will not be processed further.
-            </Text>
-          </View>
-        </View>
-      );
-    }
-
-    // Find the current status index
-    const currentStatusIndex = statuses.findIndex(s => s === parcel.status);
-
     return (
       <View style={styles.tabContent}>
         <View style={styles.timelineContainer}>
-          {statuses.map((status, index) => {
-            const isCompleted = index <= currentStatusIndex && parcel.status !== 'cancelled';
-            const isActive = index === currentStatusIndex && parcel.status !== 'cancelled';
-            const statusInfo = statusConfig[status];
+          <View style={styles.timelineItem}>
+            <View style={styles.timelineDot} />
+            <View style={styles.timelineContent}>
+              <Text style={styles.timelineTitle}>Created</Text>
+              <Text style={styles.timelineDate}>{formatDate(parcel.created_at)}</Text>
+            </View>
+          </View>
 
-            return (
-              <View key={status} style={styles.timelineItem}>
-                <View style={styles.timelineLeft}>
-                  <View
-                    style={[
-                      styles.timelineDot,
-                      isCompleted && styles.completedDot,
-                      isActive && styles.activeDot
-                    ]}
-                  >
-                    {isCompleted && (
-                      <Ionicons
-                        name={isActive ? statusInfo.icon as any : "checkmark" as any}
-                        size={16}
-                        color="#FFFFFF"
-                      />
-                    )}
-                  </View>
-
-                  {index < statuses.length - 1 && (
-                    <View
-                      style={[
-                        styles.timelineLine,
-                        index < currentStatusIndex && styles.completedLine
-                      ]}
-                    />
-                  )}
-                </View>
-
-                <View style={styles.timelineContent}>
-                  <Text
-                    style={[
-                      styles.timelineTitle,
-                      isActive && styles.activeTimelineTitle,
-                      isCompleted && !isActive && styles.completedTimelineTitle
-                    ]}
-                  >
-                    {statusInfo.label}
-                  </Text>
-
-                  <Text style={styles.timelineDescription}>
-                    {statusInfo.description}
-                  </Text>
-
-                  {isActive && (
-                    <View style={[styles.timelineStatusBadge, { backgroundColor: statusInfo.backgroundColor }]}>
-                      <Text style={[styles.timelineStatusText, { color: statusInfo.color }]}>
-                        Current Status
-                      </Text>
-                    </View>
-                  )}
-                </View>
+          {parcel.estimated_delivery && (
+            <View style={styles.timelineItem}>
+              <View style={styles.timelineDot} />
+              <View style={styles.timelineContent}>
+                <Text style={styles.timelineTitle}>Estimated Delivery</Text>
+                <Text style={styles.timelineDate}>{parcel.estimated_delivery}</Text>
               </View>
-            );
-          })}
+            </View>
+          )}
         </View>
       </View>
     );
@@ -682,214 +510,152 @@ export default function ParcelDetailsModal() {
     if (!parcel) return null;
 
     return (
-      <View style={styles.actionsContainer}>
-        {parcel.status !== 'cancelled' && parcel.status !== 'delivered' && (
-          <>
-            <TouchableOpacity style={styles.actionButton} onPress={handleChat}>
-              <Ionicons name="chatbubble" size={24} color="#FFFFFF" />
-              <Text style={styles.actionText}>Chat</Text>
-            </TouchableOpacity>
+      <View style={styles.actionButtonsContainer}>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.primaryButton]}
+          onPress={handleTrack}
+        >
+          <Ionicons name="map-outline" size={24} color="#FFFFFF" />
+          <Text style={styles.actionButtonText}>Track on Map</Text>
+        </TouchableOpacity>
 
-            {parcel.status === 'pending' && (
-              <TouchableOpacity
-                style={[styles.actionButton, styles.cancelButton]}
-                onPress={handleCancel}
-              >
-                <Ionicons name="close-circle" size={24} color="#FFFFFF" />
-                <Text style={styles.actionText}>Cancel</Text>
-              </TouchableOpacity>
-            )}
-          </>
-        )}
+        <TouchableOpacity
+          style={[styles.actionButton, styles.secondaryButton]}
+          onPress={handleShare}
+          disabled={sharingInProgress}
+        >
+          {sharingInProgress ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="share-social-outline" size={24} color="#FFFFFF" />
+              <Text style={styles.actionButtonText}>Share</Text>
+            </>
+          )}
+        </TouchableOpacity>
       </View>
     );
   };
 
-  // Main render function
   return (
-    <>
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="dark" />
       <Stack.Screen
         options={{
           title: 'Parcel Details',
           headerShown: true,
-          presentation: 'modal',
           headerStyle: {
-            backgroundColor: 'transparent',
+            backgroundColor: Colors.light.background,
           },
-          headerTransparent: true,
-          headerTintColor: '#fff',
-          headerLeft: () => (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => {
-                // Clear any pending state
-                setParcel(null);
-                setSender(null);
-                setRecipient(null);
-                setError(null);
-                // Navigate back
-                router.back();
-              }}
-            >
-              <Ionicons name="close" size={24} color="#fff" />
-            </TouchableOpacity>
-          ),
+          headerTintColor: Colors.light.text,
+          headerShadowVisible: false,
         }}
       />
 
-      <SafeAreaView style={styles.container}>
-        {/* Header with gradient background */}
-        <LinearGradient
-          colors={['#1976D2', '#64B5F6']}
-          start={[0, 0]}
-          end={[1, 1]}
-          style={styles.header}
-        >
-          <View style={styles.headerContent}>
-            {/* Parcel Status Banner */}
-            {parcel?.status && (
-              <View
-                style={[
-                  styles.statusBanner,
-                  { backgroundColor: statusConfig[parcel.status].backgroundColor }
-                ]}
-              >
-                <Ionicons
-                  name={statusConfig[parcel.status]?.icon as any}
-                  size={20}
-                  color={statusConfig[parcel.status].color}
-                />
-                <Text style={[styles.statusText, { color: statusConfig[parcel.status].color }]}>
-                  {statusConfig[parcel.status].label}
-                </Text>
-              </View>
-            )}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <Text style={styles.loadingText}>Loading parcel details...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <MaterialIcons name="error-outline" size={64} color="#D32F2F" />
+          <Text style={styles.errorTitle}>Something went wrong</Text>
+          <Text style={styles.errorMessage}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={fetchParcelDetails}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      ) : parcel ? (
+        <>
+          {renderTabBar()}
 
-            {/* Tracking Code */}
-            <Text style={styles.trackingLabel}>Tracking Code</Text>
-            <Text style={styles.trackingCode}>{parcel?.tracking_code || 'N/A'}</Text>
+          <ScrollView
+            style={styles.content}
+            contentContainerStyle={styles.contentContainer}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[Colors.light.primary]}
+                tintColor={Colors.light.primary}
+              />
+            }
+          >
+            {activeTab === 'details' && renderDetailsTab()}
+            {activeTab === 'tracking' && renderTrackingTab()}
+            {activeTab === 'timeline' && renderTimelineTab()}
+          </ScrollView>
 
-            {/* Creation Date */}
-            <Text style={styles.dateText}>
-              Created: {parcel?.created_at ? formatDate(parcel.created_at) : 'N/A'}
-            </Text>
-          </View>
-        </LinearGradient>
-
-        {/* Loading State */}
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#1976D2" />
-            <Text style={styles.loadingText}>Loading parcel details...</Text>
-          </View>
-        ) : error ? (
-          // Error State
-          <View style={styles.errorContainer}>
-            <MaterialIcons name="error-outline" size={64} color="#D32F2F" />
-            <Text style={styles.errorTitle}>Something went wrong</Text>
-            <Text style={styles.errorMessage}>{error}</Text>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={fetchParcelDetails}
-            >
-              <Text style={styles.retryButtonText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
-        ) : parcel ? (
-          <>
-            {/* Tab Bar */}
-            {renderTabBar()}
-
-            {/* Tab Content */}
-            <ScrollView
-              style={styles.content}
-              contentContainerStyle={styles.contentContainer}
-              showsVerticalScrollIndicator={false}
-            >
-              {activeTab === 'details' && renderDetailsTab()}
-              {activeTab === 'tracking' && renderTrackingTab()}
-              {activeTab === 'timeline' && renderTimelineTab()}
-            </ScrollView>
-
-            {/* Action Buttons */}
-            {renderActionButtons()}
-          </>
-        ) : (
-          <View style={styles.notFoundContainer}>
-            <MaterialCommunityIcons name="package-variant" size={64} color="#757575" />
-            <Text style={styles.notFoundTitle}>Parcel Not Found</Text>
-            <Text style={styles.notFoundText}>
-              We couldn't find this parcel. It may have been deleted or you don't have access to view it.
-            </Text>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => router.back()}
-            >
-              <Text style={styles.backButtonText}>Go Back</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </SafeAreaView>
-    </>
+          {renderActionButtons()}
+        </>
+      ) : null}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
+    backgroundColor: Colors.light.background,
   },
-  scrollView: {
+  content: {
     flex: 1,
   },
-  header: {
-    paddingTop: 60,
-    paddingBottom: 24,
-    paddingHorizontal: 20,
+  contentContainer: {
+    padding: 16,
   },
-  headerContent: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  trackingInfo: {
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: Colors.light.text,
+  },
+  errorContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
-  trackingLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#D32F2F',
+    marginTop: 16,
   },
-  trackingCode: {
-    fontSize: 18,
-    fontWeight: '700',
+  errorMessage: {
+    fontSize: 16,
+    color: Colors.light.text,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: Colors.light.primary,
+    borderRadius: 8,
+  },
+  retryButtonText: {
     color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  dateText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  statusBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    marginBottom: 12,
-  },
-  statusText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    marginLeft: 6,
   },
   tabBar: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEEEEE',
   },
   tabButton: {
     flex: 1,
@@ -897,34 +663,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
+    marginHorizontal: 4,
+    borderRadius: 8,
   },
   activeTabButton: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#1976D2',
+    backgroundColor: Colors.light.primary + '15',
   },
   tabButtonText: {
     fontSize: 14,
     color: '#757575',
-    marginLeft: 6,
+    marginLeft: 8,
   },
   activeTabButtonText: {
-    color: '#1976D2',
+    color: Colors.light.primary,
     fontWeight: '600',
   },
   tabContent: {
-    padding: 16,
+    flex: 1,
   },
   section: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
-        shadowRadius: 2,
+        shadowRadius: 4,
       },
       android: {
         elevation: 2,
@@ -943,6 +710,7 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#EEEEEE',
@@ -955,6 +723,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     fontWeight: '500',
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   personContainer: {
     flexDirection: 'row',
@@ -1028,257 +806,109 @@ const styles = StyleSheet.create({
   },
   qrCodeWrapper: {
     padding: 16,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    marginVertical: 12,
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
   },
   qrBackground: {
-    backgroundColor: 'white',
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
   },
   qrCodeSubtitle: {
     fontSize: 14,
     color: '#666666',
     textAlign: 'center',
     marginTop: 16,
-    marginBottom: 8,
   },
   qrCodeTrackingCode: {
     fontSize: 14,
-    color: '#333333',
-    textAlign: 'center',
+    color: '#666666',
+    marginTop: 8,
   },
   trackingCodeText: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    color: Colors.light.primary,
     fontWeight: '600',
-  },
-  shareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1976D2',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 16,
   },
   trackButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: Colors.light.primary,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#4CAF50',
     paddingVertical: 12,
-    paddingHorizontal: 16,
     borderRadius: 8,
-    marginBottom: 16,
-  },
-  disabledButton: {
-    backgroundColor: '#9E9E9E',
   },
   buttonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
   },
-  actionsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    padding: 16,
-    marginBottom: 24,
-  },
-  actionButton: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 8,
-    padding: 12,
-    alignItems: 'center',
-    minWidth: '48%',
-    marginBottom: 8,
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#F44336',
-  },
-  actionText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 8,
+  disabledButton: {
+    opacity: 0.7,
   },
   timelineContainer: {
-    paddingVertical: 8,
+    padding: 16,
   },
   timelineItem: {
     flexDirection: 'row',
-    marginBottom: 20,
-  },
-  timelineLeft: {
-    width: 24,
-    alignItems: 'center',
+    marginBottom: 24,
   },
   timelineDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#E0E0E0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  completedDot: {
-    backgroundColor: '#4CAF50',
-  },
-  activeDot: {
-    backgroundColor: '#1976D2',
-  },
-  timelineLine: {
-    position: 'absolute',
-    top: 24,
-    left: 11,
-    width: 2,
-    height: '100%',
-    backgroundColor: '#E0E0E0',
-    zIndex: 0,
-  },
-  completedLine: {
-    backgroundColor: '#4CAF50',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: Colors.light.primary,
+    marginRight: 16,
+    marginTop: 4,
   },
   timelineContent: {
-    marginLeft: 16,
     flex: 1,
   },
   timelineTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 4,
   },
-  activeTimelineTitle: {
-    color: '#1976D2',
-  },
-  completedTimelineTitle: {
-    color: '#4CAF50',
-  },
-  timelineDescription: {
+  timelineDate: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 8,
-  },
-  timelineStatusBadge: {
-    alignSelf: 'flex-start',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 4,
     marginTop: 4,
   },
-  timelineStatusText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  cancelledContainer: {
-    backgroundColor: '#FFEBEE',
-    borderRadius: 8,
+  actionButtonsContainer: {
+    flexDirection: 'row',
     padding: 16,
-    marginTop: 16,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
   },
-  cancelledBadge: {
+  actionButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  cancelledText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#D32F2F',
-    marginLeft: 8,
-  },
-  cancelledDescription: {
-    fontSize: 14,
-    color: '#666',
-  },
-  loadingContainer: {
-    flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 24,
-  },
-  errorTitle: {
-    marginTop: 16,
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  errorMessage: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  retryButton: {
-    backgroundColor: '#1976D2',
     paddingVertical: 12,
-    paddingHorizontal: 24,
     borderRadius: 8,
+    marginHorizontal: 8,
   },
-  retryButtonText: {
+  primaryButton: {
+    backgroundColor: Colors.light.primary,
+  },
+  secondaryButton: {
+    backgroundColor: '#4CAF50',
+  },
+  actionButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-  },
-  backButton: {
-    padding: 8,
-    borderRadius: 20,
     marginLeft: 8,
   },
-  backButtonText: {
-    color: '#1976D2',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  content: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingBottom: 24,
-  },
-  notFoundContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 24,
-  },
-  notFoundTitle: {
-    marginTop: 16,
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  notFoundText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 24,
-  }
 }); 
