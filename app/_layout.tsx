@@ -1,5 +1,5 @@
 import React, { useEffect, useState, Component, ErrorInfo, ReactNode, useRef } from 'react';
-import { Stack, useRouter, useSegments, SplashScreen } from 'expo-router';
+import { Stack, useRouter, useSegments, SplashScreen, Slot } from 'expo-router';
 import { AuthProvider } from '../src/context/AuthContext';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -89,6 +89,7 @@ function RootLayoutNav() {
   const [lastActiveTime, setLastActiveTime] = useState<number>(Date.now());
   const appState = useRef(AppState.currentState);
   const [appStateVisible, setAppStateVisible] = useState(appState.current);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   // Watch for app state changes to restore session
   useEffect(() => {
@@ -128,9 +129,17 @@ function RootLayoutNav() {
     };
   }, [session, lastActiveTime]);
 
+  // Initialize navigation state
   useEffect(() => {
-    if (loading || !segments || segments.length === 0) return;
+    if (!loading && !isInitialized) {
+      setIsInitialized(true);
+    }
+  }, [loading]);
 
+  // Handle navigation after initialization
+  useEffect(() => {
+    const hasValidSegments = Array.isArray(segments) && segments.length > 0;
+    if (!isInitialized || loading || !hasValidSegments) return;
     if (checkedOnboarding) return;
 
     const checkOnboarding = async () => {
@@ -200,13 +209,17 @@ function RootLayoutNav() {
     };
     
     checkOnboarding();
-  }, [session, loading, segments, manuallyRestoreSession]);
+  }, [session, loading, segments, isInitialized, checkedOnboarding]);
 
   useEffect(() => {
     if (!loading) {
       SplashScreen.hideAsync();
     }
   }, [loading]);
+
+  if (!isInitialized) {
+    return <Slot />;
+  }
 
   return (
     <CustomErrorBoundary>
@@ -222,6 +235,7 @@ function RootLayoutNav() {
           <Stack.Screen name="onboarding" options={{ headerShown: false }} />
           <Stack.Screen name="(modals)" options={{ presentation: 'modal' }} />
           <Stack.Screen name="tracking" options={{ headerShown: false }} />
+          <Stack.Screen name="parcel/[id]" options={{ headerShown: true }} />
         </Stack>
       </AppWithLanguage>
     </CustomErrorBoundary>

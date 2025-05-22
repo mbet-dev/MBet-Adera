@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '../../src/context/AuthContext';
 import Colors from '../../constants/Colors';
 import { useRouter } from 'expo-router';
+import { useTheme } from 'react-native-paper';
 
 const COLORS = Colors.light; // Using light theme colors
 
@@ -63,6 +64,7 @@ export default function TabLayout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
+  const theme = useTheme();
 
   useEffect(() => {
     setIsMounted(true);
@@ -107,11 +109,13 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: '#999999',
-        tabBarLabelStyle: styles.tabBarLabel,
         headerShown: false,
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.outline,
+        tabBarStyle: {
+          backgroundColor: theme.colors.background,
+          borderTopColor: theme.colors.outline,
+        },
       }}
     >
       <Tabs.Screen
@@ -119,7 +123,7 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
+            <MaterialCommunityIcons name="home" size={size} color={color} />
           ),
         }}
       />
@@ -133,11 +137,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="orders"
+        name="orders-screen"
         options={{
           title: 'Orders',
           tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="local-shipping" size={size} color={color} />
+            <MaterialCommunityIcons name="package-variant" size={size} color={color} />
           ),
         }}
       />
@@ -156,7 +160,7 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
+            <MaterialCommunityIcons name="account" size={size} color={color} />
           ),
         }}
       />

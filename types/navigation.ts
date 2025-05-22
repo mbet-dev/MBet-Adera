@@ -17,18 +17,11 @@ export type AuthStackParamList = {
 };
 
 export type TabStackParamList = {
-  home: undefined;
+  index: undefined;
+  'create-order': undefined;
   orders: undefined;
+  chat: undefined;
   profile: undefined;
-};
-
-export type MainTabParamList = {
-  Home: undefined;
-  'New Delivery': undefined;
-  'My Orders': undefined;
-  'Parcel Details': undefined;
-  Chat: undefined;
-  'My Account': undefined;
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<
@@ -36,8 +29,8 @@ export type RootStackScreenProps<T extends keyof RootStackParamList> = NativeSta
   T
 >;
 
-export type MainTabScreenProps<T extends keyof MainTabParamList> = CompositeScreenProps<
-  BottomTabScreenProps<MainTabParamList, T>,
+export type TabStackScreenProps<T extends keyof TabStackParamList> = CompositeScreenProps<
+  BottomTabScreenProps<TabStackParamList, T>,
   RootStackScreenProps<keyof RootStackParamList>
 >;
 
