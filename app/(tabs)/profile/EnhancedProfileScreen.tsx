@@ -495,7 +495,7 @@ export default function EnhancedProfileScreen() {
             title="Active Deliveries"
             value={deliveryStats.active.toString()}
             icon={<MaterialCommunityIcons name="truck-delivery" size={24} color="#F59E0B" />}
-            onPress={() => router.push('/orders')}
+            onPress={() => router.push('/orders-screen')}
             accentColor="#F59E0B"
           />
           
@@ -503,7 +503,7 @@ export default function EnhancedProfileScreen() {
             <View style={styles.statsCard}>
               <View style={styles.statsHeader}>
                 <Text style={styles.statsTitle}>Delivery Stats</Text>
-                <TouchableOpacity onPress={() => router.push('/orders')}>
+                <TouchableOpacity onPress={() => router.push('/orders-screen')}>
                   <Text style={styles.viewAllText}>View All</Text>
                 </TouchableOpacity>
               </View>
@@ -586,7 +586,7 @@ export default function EnhancedProfileScreen() {
           <SettingsListItem
             icon="cube"
             label="My Deliveries"
-            onPress={() => router.push('/orders')}
+            onPress={() => router.push('/orders-screen')}
             showChevron={true}
             rightContent={
               deliveryStats.active > 0 ? (

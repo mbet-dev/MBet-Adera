@@ -40,7 +40,7 @@ export const ParcelStatsDashboard: React.FC<ParcelStatsDashboardProps> = ({
           <Text style={styles.webDashboardTitle}>Parcel Delivery Statistics</Text>
           <TouchableOpacity 
             style={styles.webViewAllButton}
-            onPress={() => router.push('/(tabs)/orders')}
+            onPress={() => router.push('/(tabs)/orders-screen')}
           >
             <Text style={styles.webViewAllText}>View All Parcels</Text>
             <MaterialIcons name="arrow-forward" size={16} color="#FFFFFF" />

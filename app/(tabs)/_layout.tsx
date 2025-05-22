@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View, Text, ActivityIndicator } from 'react-native';
-import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '../../src/context/AuthContext';
 import Colors from '../../constants/Colors';
@@ -128,16 +128,16 @@ export default function TabLayout() {
         options={{
           title: 'Send',
           tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="add-circle" size={size} color={color} />
+            <Ionicons name="add-circle" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="orders"
+        name="orders-screen"
         options={{
           title: 'Orders',
           tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="local-shipping" size={size} color={color} />
+            <Ionicons name="cube" size={size} color={color} />
           ),
         }}
       />

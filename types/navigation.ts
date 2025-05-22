@@ -18,14 +18,14 @@ export type AuthStackParamList = {
 
 export type TabStackParamList = {
   home: undefined;
-  orders: undefined;
+  'orders-screen': undefined;
   profile: undefined;
 };
 
 export type MainTabParamList = {
   Home: undefined;
   'New Delivery': undefined;
-  'My Orders': undefined;
+  'Orders': undefined;
   'Parcel Details': undefined;
   Chat: undefined;
   'My Account': undefined;

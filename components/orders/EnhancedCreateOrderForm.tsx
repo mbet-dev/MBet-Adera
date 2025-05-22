@@ -172,7 +172,7 @@ export const EnhancedCreateOrderForm = () => {
         [
           {
             text: 'View My Orders',
-            onPress: () => router.push('/orders'),
+            onPress: () => router.push('/orders-screen'),
           },
           { 
             text: 'Create Another', 
