@@ -81,6 +81,7 @@ WHERE addresses.partner_id = p.id
 AND addresses.is_facility != p.is_facility;
 
 -- 7. Update the partner_locations view to ensure it's correctly picking up all relationships
+DROP VIEW IF EXISTS partner_locations;
 CREATE OR REPLACE VIEW partner_locations AS
 SELECT
   p.id,
@@ -114,4 +115,58 @@ SELECT 'addresses' as table_name, COUNT(*) as record_count FROM addresses;
 SELECT 'partner_locations' as table_name, COUNT(*) as record_count FROM partner_locations;
 
 -- If everything looks good, commit the transaction
-COMMIT; 
+COMMIT;
+
+-- Function to get parcel details with phone numbers
+CREATE OR REPLACE FUNCTION get_parcel_by_id(p_parcel_id UUID, p_user_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_parcel JSONB;
+BEGIN
+    SELECT jsonb_build_object(
+        'id', p.id,
+        'tracking_code', p.tracking_code,
+        'status', p.status,
+        'sender_id', p.sender_id,
+        'receiver_id', p.receiver_id,
+        'pickup_address_id', p.pickup_address_id,
+        'dropoff_address_id', p.dropoff_address_id,
+        'package_description', p.package_description,
+        'package_size', p.package_size,
+        'is_fragile', p.is_fragile,
+        'pickup_contact', p.pickup_contact,
+        'dropoff_contact', p.dropoff_contact,
+        'created_at', p.created_at,
+        'updated_at', p.updated_at,
+        'weight', p.weight,
+        'sender_phone', sender_profile.phone_number,
+        'receiver_phone', receiver_profile.phone_number,
+        'pickup_address', jsonb_build_object(
+            'id', pa.id,
+            'address_line', pa.address_line,
+            'city', pa.city,
+            'latitude', pa.latitude,
+            'longitude', pa.longitude
+        ),
+        'dropoff_address', jsonb_build_object(
+            'id', da.id,
+            'address_line', da.address_line,
+            'city', da.city,
+            'latitude', da.latitude,
+            'longitude', da.longitude
+        )
+    ) INTO v_parcel
+    FROM parcels p
+    LEFT JOIN profiles sender_profile ON p.sender_id = sender_profile.id
+    LEFT JOIN profiles receiver_profile ON p.receiver_id = receiver_profile.id
+    LEFT JOIN addresses pa ON p.pickup_address_id = pa.id
+    LEFT JOIN addresses da ON p.dropoff_address_id = da.id
+    WHERE p.id = p_parcel_id
+    AND (p.sender_id = p_user_id OR p.receiver_id = p_user_id);
+
+    RETURN v_parcel;
+END;
+$$; 

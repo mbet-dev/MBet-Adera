@@ -91,70 +91,54 @@ export default function ParcelDetailsModal() {
       setLoading(true);
       setError(null);
 
-      // Fetch parcel details and both profiles in a single query
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+
+      // Use the RPC function to get parcel details with phone numbers
       const { data: parcelData, error } = await supabase
-        .from('parcels')
-        .select(`
-          *,
-          sender:sender_id (id, full_name, phone_number),
-          receiver:receiver_id (id, full_name, phone_number)
-        `)
-        .eq('id', id)
-        .single();
+        .rpc('get_parcel_by_id', {
+          p_parcel_id: id,
+          p_user_id: user.id
+        });
 
       if (error) {
+        console.error('Error fetching parcel:', error);
         setError('Could not load parcel details.');
         setLoading(false);
         return;
       }
 
-      // Fetch pickup and dropoff addresses in parallel
-      const [pickupAddressRes, dropoffAddressRes] = await Promise.all([
-        parcelData.pickup_address_id
-          ? supabase
-              .from('addresses')
-              .select('*')
-              .eq('id', parcelData.pickup_address_id)
-              .single()
-          : Promise.resolve({ data: null }),
-        parcelData.dropoff_address_id
-          ? supabase
-              .from('addresses')
-              .select('*')
-              .eq('id', parcelData.dropoff_address_id)
-              .single()
-          : Promise.resolve({ data: null })
-      ]);
+      if (!parcelData) {
+        setError('Parcel not found.');
+        setLoading(false);
+        return;
+      }
 
-      const pickupAddress = pickupAddressRes.data || null;
-      const dropoffAddress = dropoffAddressRes.data || null;
-
-      const combinedParcelData: Parcel = {
-        ...(parcelData as any),
-        pickup_address: pickupAddress,
-        dropoff_address: dropoffAddress,
-        id: parcelData.id,
-        created_at: parcelData.created_at || '',
-        updated_at: parcelData.updated_at || '',
-        sender_id: parcelData.sender_id || '',
-        receiver_id: parcelData.receiver_id || '',
-        tracking_code: parcelData.tracking_code || '',
-        status: parcelData.status as ParcelStatus || 'pending',
-        package_size: parcelData.package_size || 'small',
-        is_fragile: parcelData.is_fragile || false,
-        weight: parcelData.weight || 0,
-        price: parcelData.price || 0,
-        package_description: parcelData.package_description || '',
-        notes: parcelData.notes || '',
-        estimated_delivery: parcelData.estimated_delivery || '',
-        sender: parcelData.sender,
-        receiver: parcelData.receiver,
+      // Set the parcel data directly from the RPC response
+      setParcel(parcelData as Parcel);
+      
+      // Get first names from full names
+      const getFirstName = (fullName: string | undefined) => {
+        if (!fullName) return '';
+        return fullName.split(' ')[0];
       };
 
-      setParcel(combinedParcelData);
-      setSender(parcelData.sender);
-      setRecipient(parcelData.receiver);
+      // Set sender and recipient profiles with phone numbers
+      setSender({
+        id: parcelData.sender_id,
+        phone_number: parcelData.sender_phone,
+        full_name: getFirstName(parcelData.sender?.full_name)
+      });
+      
+      setRecipient({
+        id: parcelData.receiver_id,
+        phone_number: parcelData.receiver_phone,
+        full_name: getFirstName(parcelData.receiver?.full_name)
+      });
+
     } catch (error) {
+      console.error('Error in fetchParcelDetails:', error);
       setError('Could not load parcel details. Please try again.');
     } finally {
       setLoading(false);
@@ -354,29 +338,23 @@ export default function ParcelDetailsModal() {
   const renderPersonSection = (title: string, profile: Profile | null, contact: string | undefined) => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.personContainer}>
-        <View style={styles.personDetails}>
-          <View style={styles.personRow}>
-            <Ionicons name="person-outline" size={20} color="#666" />
-            <Text style={styles.personName}>
-              {profile?.full_name || contact || 'N/A'}
-            </Text>
-          </View>
-          <View style={styles.personRow}>
-            <Ionicons name="call-outline" size={20} color="#666" />
-            <Text style={styles.personPhone}>
-              {profile?.phone_number || contact || 'N/A'}
-            </Text>
-          </View>
+      <View style={styles.sectionContent}>
+        <MaterialIcons name="person" size={24} color={Colors.light.tint} />
+        <View style={styles.sectionTextContainer}>
+          <Text style={styles.sectionText}>{profile?.full_name || ''}</Text>
+          {profile?.phone_number && (
+            <TouchableOpacity 
+              style={styles.phoneContainer}
+              onPress={() => Linking.openURL(`tel:${profile.phone_number}`)}
+            >
+              <Ionicons name="call" size={20} color={Colors.light.tint} />
+              <Text style={styles.phoneText}>{profile.phone_number}</Text>
+            </TouchableOpacity>
+          )}
+          {contact && (
+            <Text style={styles.sectionSubText}>Contact: {contact}</Text>
+          )}
         </View>
-        {(profile?.phone_number || contact) && (
-          <TouchableOpacity
-            style={styles.callButton}
-            onPress={() => Linking.openURL(`tel:${profile?.phone_number || contact}`)}
-          >
-            <Ionicons name="call" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        )}
       </View>
     </View>
   );
@@ -704,6 +682,23 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 12,
   },
+  sectionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionTextContainer: {
+    flex: 1,
+  },
+  sectionText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
+  sectionSubText: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
   detailsContainer: {
     marginTop: 8,
   },
@@ -733,38 +728,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
-  },
-  personContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  personDetails: {
-    flex: 1,
-  },
-  personRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  personName: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
-    marginLeft: 8,
-  },
-  personPhone: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 8,
-  },
-  callButton: {
-    backgroundColor: '#4CAF50',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   addressContainer: {
     marginTop: 8,
@@ -910,5 +873,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  phoneContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  phoneText: {
+    fontSize: 14,
+    color: Colors.light.tint,
+    marginLeft: 8,
+    textDecorationLine: 'underline',
   },
 }); 
